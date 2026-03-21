@@ -27,8 +27,12 @@ use crate::errors::AuctionError;
 /// Pass all Bid PDAs as `remaining_accounts` (derive from auction.bidders list).
 pub fn handler(ctx: Context<CloseAuction>) -> Result<()> {
     // Validate state (immutable checks first)
+    // Accept both Created and Delegated: the #[delegate] macro doesn't update
+    // the status field, so the TEE copy still has status=Created even though
+    // the account IS delegated. Both are valid for close_auction on PER.
     require!(
-        ctx.accounts.auction.status == AuctionStatus::Delegated,
+        ctx.accounts.auction.status == AuctionStatus::Delegated
+            || ctx.accounts.auction.status == AuctionStatus::Created,
         AuctionError::NotDelegated
     );
     require!(

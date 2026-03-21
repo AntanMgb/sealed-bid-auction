@@ -23,7 +23,8 @@ pub const PERMISSION_PROGRAM_ID: Pubkey =
 ///   4. PER middleware enforces: only group members (= bidder) can RPC-read it
 pub fn handler(ctx: Context<CreateBidPermission>) -> Result<()> {
     require!(
-        ctx.accounts.auction.status == AuctionStatus::Delegated,
+        ctx.accounts.auction.status == AuctionStatus::Delegated
+            || ctx.accounts.auction.status == AuctionStatus::Created,
         AuctionError::NotDelegated
     );
     require!(

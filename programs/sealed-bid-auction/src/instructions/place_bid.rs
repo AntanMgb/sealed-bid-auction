@@ -21,8 +21,11 @@ use crate::errors::AuctionError;
 pub fn handler(ctx: Context<PlaceBid>, amount: u64) -> Result<()> {
     let auction = &mut ctx.accounts.auction;
 
+    // Accept both Created and Delegated: the #[delegate] macro doesn't update
+    // the status field, so the TEE copy has status=Created.
     require!(
-        auction.status == AuctionStatus::Delegated,
+        auction.status == AuctionStatus::Delegated
+            || auction.status == AuctionStatus::Created,
         AuctionError::NotDelegated
     );
     require!(auction.is_accepting_bids(), AuctionError::BiddingClosed);
