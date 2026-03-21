@@ -8,8 +8,15 @@ const TEE_ORIGIN = "https://tee.magicblock.app";
  * Makes the request server-side to bypass CORS entirely.
  */
 export async function POST(request: NextRequest) {
-  const token = request.headers.get("x-tee-token") || "";
+  // Accept token from header OR query param (fallback)
+  const url = new URL(request.url);
+  const token =
+    request.headers.get("x-tee-token") ||
+    url.searchParams.get("teetoken") ||
+    "";
   const body = await request.text();
+
+  console.log("[tee-rpc] token length:", token.length, "token preview:", token.substring(0, 20) + "...");
 
   const targetUrl = token ? `${TEE_ORIGIN}?token=${token}` : TEE_ORIGIN;
 

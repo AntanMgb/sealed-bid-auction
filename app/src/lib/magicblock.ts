@@ -93,16 +93,18 @@ export async function createTeeSession(
     throw new Error("No token received from TEE");
   }
 
-  console.log("[TEE] Authenticated, token obtained");
+  const token: string = authJson.token;
+  console.log("[TEE] Authenticated, token length:", token.length, "preview:", token.substring(0, 30));
 
   // Step 4: Create Connection that routes through our server-side RPC proxy.
-  // The proxy reads the token from X-Tee-Token header and forwards to TEE.
-  const teeConnection = new Connection("/api/tee-rpc", {
+  // Pass token both in URL (reliable) and header (backup).
+  const proxyUrl = `/api/tee-rpc?teetoken=${encodeURIComponent(token)}`;
+  const teeConnection = new Connection(proxyUrl, {
     commitment: "confirmed",
-    httpHeaders: { "X-Tee-Token": authJson.token },
+    httpHeaders: { "X-Tee-Token": token },
   });
 
-  return { teeEndpoint: "/api/tee-rpc", teeConnection, attestation: null };
+  return { teeEndpoint: proxyUrl, teeConnection, attestation: null };
 }
 
 // ─── Devnet L1 Connection ─────────────────────────────────────────────────────
