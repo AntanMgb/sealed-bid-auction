@@ -31,10 +31,11 @@
       "name": "delegateAuction",
       "accounts": [
         { "name": "payer", "isMut": true, "isSigner": true },
-        { "name": "auction", "isMut": true, "isSigner": false },
-        { "name": "auctionState", "isMut": false, "isSigner": false }
+        { "name": "auction", "isMut": true, "isSigner": false }
       ],
-      "args": []
+      "args": [
+        { "name": "auctionId", "type": "u64" }
+      ]
     },
     {
       "name": "placeBid",
@@ -160,6 +161,6 @@
     }
   ],
   "metadata": {
-    "address": "SBAuc1111111111111111111111111111111111111111"
+    "address": "5bnJuoZoBWCURr3hh3qYsBiD9jiQiL5vbMXTJS5VFXVy"
   }
 }
