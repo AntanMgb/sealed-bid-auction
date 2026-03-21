@@ -4,7 +4,7 @@ import { PublicKey } from "@solana/web3.js";
 // TODO: Replace with your real program ID after `anchor deploy`
 // Temporary placeholder (System Program) so the UI loads without errors
 export const PROGRAM_ID = new PublicKey(
-  "11111111111111111111111111111111"
+  "5bnJuoZoBWCURr3hh3qYsBiD9jiQiL5vbMXTJS5VFXVy"
 );
 
 // ─── MagicBlock ──────────────────────────────────────────────────────────────

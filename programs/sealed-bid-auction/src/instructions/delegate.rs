@@ -21,7 +21,7 @@ pub fn handler(ctx: Context<DelegateAuction>, auction_id: u64) -> Result<()> {
 
     // Delegate to the TEE validator (Intel TDX Private ER).
     // remaining_accounts[0] = TEE validator pubkey (client passes it).
-    ctx.accounts.delegate_pda(
+    ctx.accounts.delegate_auction(
         &ctx.accounts.payer,
         &[
             AUCTION_SEED,

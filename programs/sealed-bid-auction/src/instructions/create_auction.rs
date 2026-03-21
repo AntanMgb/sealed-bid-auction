@@ -31,7 +31,7 @@ pub fn handler(
     auction.bidders = Vec::new();
 
     emit!(AuctionCreated {
-        auction: ctx.accounts.auction.key(),
+        auction: auction.key(),
         seller: ctx.accounts.seller.key(),
         auction_id,
         reserve_price,

@@ -13,7 +13,7 @@ import {
   verifyTeeRpcIntegrity,
   getAuthToken,
 } from "@magicblock-labs/ephemeral-rollups-sdk";
-import { TEE_RPC_BASE, MAGIC_ROUTER_WSS } from "./constants";
+import { TEE_RPC_BASE, MAGIC_ROUTER_WSS, SOLANA_DEVNET_RPC } from "./constants";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,6 +88,21 @@ export async function createTeeSession(
   });
 
   return { teeEndpoint, teeConnection, attestation };
+}
+
+// ─── Devnet L1 Connection ─────────────────────────────────────────────────────
+
+/**
+ * Direct connection to Solana devnet for L1 operations.
+ * Use this instead of Magic Router for create_auction, delegate_auction,
+ * create_bid_permission, and settle_auction — these are L1 transactions
+ * that need direct devnet confirmation.
+ */
+export function getDevnetConnection(): Connection {
+  return new Connection(SOLANA_DEVNET_RPC, {
+    commitment: "confirmed",
+    confirmTransactionInitialTimeout: 120_000,
+  });
 }
 
 // ─── Magic Router Connection ──────────────────────────────────────────────────

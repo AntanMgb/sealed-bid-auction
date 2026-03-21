@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useEffect, useState, useCallback } from "react";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { AnchorProvider, BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { formatDistanceToNow, formatDistance } from "date-fns";
@@ -11,7 +11,7 @@ import {
   getProgram,
   AuctionState,
 } from "@/lib/program";
-import { subscribeToAuctionEvents, AuctionEvent, TeeAttestation, createTeeSession } from "@/lib/magicblock";
+import { subscribeToAuctionEvents, AuctionEvent, TeeAttestation, createTeeSession, getDevnetConnection } from "@/lib/magicblock";
 import { BidForm } from "./BidForm";
 import { ResultPanel } from "./ResultPanel";
 import { LiveFeed } from "./LiveFeed";
@@ -23,7 +23,6 @@ interface Props {
 
 export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
   const { publicKey, signTransaction, signMessage } = useWallet();
-  const { connection } = useConnection();
 
   const [auction, setAuction] = useState<AuctionState | null>(null);
   const [events, setEvents] = useState<AuctionEvent[]>([]);
@@ -37,14 +36,15 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
   // Fetch auction state
   const refresh = useCallback(async () => {
     if (!publicKey || !signTransaction) return;
+    const devnetConnection = getDevnetConnection();
     const provider = new AnchorProvider(
-      connection,
+      devnetConnection,
       { publicKey, signTransaction, signAllTransactions: async (t) => t },
       { commitment: "confirmed" }
     );
     const data = await fetchAuction(getProgram(provider), auctionPda);
     if (data) setAuction(data);
-  }, [publicKey, signTransaction, connection, auctionPda]);
+  }, [publicKey, signTransaction, auctionPda]);
 
   useEffect(() => {
     refresh();

@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{instruction::Instruction, program::invoke_signed};
+use sha2::{Digest, Sha256};
 use crate::state::{Auction, AuctionStatus, AUCTION_SEED, BID_SEED, PERM_GROUP_SEED};
 use crate::errors::AuctionError;
 
@@ -50,10 +51,8 @@ pub fn handler(ctx: Context<CreateBidPermission>) -> Result<()> {
     //
     // Anchor discriminator = sha256("global:create_permission_group")[..8]
     let discriminator: [u8; 8] = {
-        let hash = anchor_lang::solana_program::hash::hashv(&[
-            b"global:create_permission_group",
-        ]);
-        hash.to_bytes()[..8].try_into().unwrap()
+        let hash = Sha256::digest(b"global:create_permission_group");
+        hash[..8].try_into().unwrap()
     };
 
     // Instruction args: (group_bump: u8, governed_account: Pubkey)

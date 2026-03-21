@@ -1,11 +1,11 @@
 "use client";
 
 import { FC } from "react";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { getProgram, settleAuction, AuctionState } from "@/lib/program";
-import { TeeAttestation } from "@/lib/magicblock";
+import { TeeAttestation, getDevnetConnection } from "@/lib/magicblock";
 import { TEE_VALIDATOR_DEVNET } from "@/lib/constants";
 
 interface Props {
@@ -30,7 +30,6 @@ export const ResultPanel: FC<Props> = ({
   commitTxSig,
 }) => {
   const { publicKey, signTransaction } = useWallet();
-  const { connection } = useConnection();
 
   const isWinner =
     publicKey && auction.winner.toBase58() === publicKey.toBase58();
@@ -41,8 +40,9 @@ export const ResultPanel: FC<Props> = ({
   async function handleSettle() {
     if (!publicKey || !signTransaction || !isWinner) return;
 
+    const devnetConnection = getDevnetConnection();
     const provider = new AnchorProvider(
-      connection,
+      devnetConnection,
       {
         publicKey,
         signTransaction,

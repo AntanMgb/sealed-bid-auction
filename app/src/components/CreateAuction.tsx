@@ -1,9 +1,10 @@
 "use client";
 
 import { FC, useState } from "react";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { AnchorProvider, BN } from "@coral-xyz/anchor";
 import { createAuction, delegateAuction, getAuctionPda, getProgram } from "@/lib/program";
+import { getDevnetConnection } from "@/lib/magicblock";
 
 interface Props {
   onCreated: (auctionPda: string) => void;
@@ -11,7 +12,6 @@ interface Props {
 
 export const CreateAuction: FC<Props> = ({ onCreated }) => {
   const { publicKey, signTransaction } = useWallet();
-  const { connection } = useConnection();
 
   const [title, setTitle] = useState("");
   const [reserve, setReserve] = useState("0.1");
@@ -25,8 +25,9 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
     setError(null);
 
     try {
+      const devnetConnection = getDevnetConnection();
       const provider = new AnchorProvider(
-        connection,
+        devnetConnection,
         { publicKey, signTransaction, signAllTransactions: async (t) => t },
         { commitment: "confirmed" }
       );

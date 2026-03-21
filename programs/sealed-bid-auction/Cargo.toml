@@ -25,3 +25,4 @@ anchor-spl = { version = "0.32.1" }
 # MagicBlock Ephemeral Rollups SDK — provides delegation + commit primitives
 # "disable-realloc" avoids the realloc hook which conflicts with some setups
 ephemeral-rollups-sdk = { version = "0.6.5", features = ["anchor", "disable-realloc"] }
+sha2 = "0.10"

@@ -1,7 +1,7 @@
 "use client";
 
 import { FC, useState } from "react";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { AnchorProvider, BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import {
@@ -10,7 +10,7 @@ import {
   getAuctionPda,
   getProgram,
 } from "@/lib/program";
-import { createTeeSession } from "@/lib/magicblock";
+import { createTeeSession, getDevnetConnection } from "@/lib/magicblock";
 import { AuctionState } from "@/lib/program";
 
 interface Props {
@@ -30,7 +30,6 @@ interface Props {
 export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
   const { publicKey, signMessage, signTransaction, sendTransaction } =
     useWallet();
-  const { connection } = useConnection();
 
   const [amount, setAmount] = useState("");
   const [step, setStep] = useState<
@@ -61,8 +60,9 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
       // future Bid PDA on PER. Must happen on L1 first.
       setStep("permission");
 
+      const devnetConnection = getDevnetConnection();
       const l1Provider = new AnchorProvider(
-        connection,
+        devnetConnection,
         { publicKey, signTransaction, signAllTransactions: async (txs) => txs },
         { commitment: "confirmed" }
       );

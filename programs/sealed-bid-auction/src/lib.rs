@@ -7,7 +7,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("SBAuc1111111111111111111111111111111111111111");
+declare_id!("5bnJuoZoBWCURr3hh3qYsBiD9jiQiL5vbMXTJS5VFXVy");
 
 /// # Sealed-Bid Auction on MagicBlock Private Ephemeral Rollups
 ///
