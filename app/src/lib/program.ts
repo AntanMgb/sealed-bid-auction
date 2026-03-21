@@ -14,10 +14,7 @@ import {
   TEE_VALIDATOR_DEVNET,
   PERMISSION_PROGRAM_ID,
 } from "./constants";
-import rawIdl from "../idl/sealed_bid_auction.json";
-
-// Inject the program address into the IDL so Anchor knows where to send txs
-const IDL = { ...rawIdl, address: PROGRAM_ID.toBase58() };
+import IDL from "../idl/sealed_bid_auction.json";
 
 // ─── PDA Helpers ─────────────────────────────────────────────────────────────
 
@@ -73,10 +70,9 @@ export async function createAuction(
 
   const tx = await program.methods
     .createAuction(auctionId, reservePrice, durationSeconds, title)
-    .accountsStrict({
+    .accounts({
       seller,
       auction: auctionPda,
-      systemProgram: SystemProgram.programId,
     })
     .rpc({ commitment: "confirmed" });
 
@@ -95,12 +91,10 @@ export async function createBidPermission(
 
   const tx = await program.methods
     .createBidPermission()
-    .accountsStrict({
+    .accounts({
       bidder,
       auction: auctionPda,
       permissionGroup: permGroupPda,
-      permissionProgram: PERMISSION_PROGRAM_ID,
-      systemProgram: SystemProgram.programId,
     })
     .rpc({ commitment: "confirmed" });
 
@@ -117,7 +111,7 @@ export async function delegateAuction(
 ): Promise<string> {
   const tx = await program.methods
     .delegateAuction(auctionId)
-    .accountsStrict({
+    .accounts({
       payer: seller,
       auction: auctionPda,
     })
@@ -141,11 +135,10 @@ export async function placeBid(
 
   const tx = await program.methods
     .placeBid(amount)
-    .accountsStrict({
+    .accounts({
       bidder,
       auction: auctionPda,
       bid: bidPda,
-      systemProgram: SystemProgram.programId,
     })
     .rpc({ commitment: "confirmed" });
 
@@ -169,7 +162,7 @@ export async function closeAuction(
 
   const tx = await program.methods
     .closeAuction()
-    .accountsStrict({
+    .accounts({
       payer,
       auction: auctionPda,
     })
@@ -189,11 +182,10 @@ export async function settleAuction(
 ): Promise<string> {
   const tx = await program.methods
     .settleAuction()
-    .accountsStrict({
+    .accounts({
       winner,
       seller,
       auction: auctionPda,
-      systemProgram: SystemProgram.programId,
     })
     .rpc({ commitment: "confirmed" });
 
