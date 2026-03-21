@@ -55,27 +55,10 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
     }
 
     try {
-      // ── Step 1: Create Permission Group on L1 ─────────────────────────────
-      // This registers the bidder as the sole authorized reader of their
-      // future Bid PDA on PER. Must happen on L1 first.
-      setStep("permission");
-
-      const devnetConnection = getDevnetConnection();
-      const l1Provider = new AnchorProvider(
-        devnetConnection,
-        { publicKey, signTransaction, signAllTransactions: async (txs) => txs },
-        { commitment: "confirmed" }
-      );
-      const l1Program = getProgram(l1Provider);
-
-      await createBidPermission(l1Program, publicKey, auctionPda, {
-        seller: auction.seller,
-        auction_id: auction.auctionId,
-      });
-
-      // ── Step 2: Authenticate with TEE ─────────────────────────────────────
+      // ── Step 1: Authenticate with TEE ───────────────────────────────────────
       // Signs a challenge so the TEE middleware knows who's bidding.
-      // Required for the PER permission check on the response side.
+      // Permission group is skipped because the auction account is delegated
+      // (owned by Delegation Program on L1), so L1 instructions can't read it.
       setStep("bidding");
 
       const { teeConnection, attestation } = await createTeeSession(
@@ -163,20 +146,10 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
           )}
 
           {/* Progress indicator */}
-          {(step === "permission" || step === "bidding") && (
-            <div className="text-xs text-gray-400 space-y-1">
-              <div
-                className={`flex items-center gap-2 ${step === "permission" ? "text-yellow-400" : "text-green-400"}`}
-              >
-                <span>{step === "permission" ? "⏳" : "✅"}</span>
-                Step 1: Creating privacy group on L1...
-              </div>
-              <div
-                className={`flex items-center gap-2 ${step === "bidding" ? "text-yellow-400" : "text-gray-600"}`}
-              >
-                <span>{step === "bidding" ? "⏳" : "○"}</span>
-                Step 2: Sealing bid in TEE (Intel TDX)...
-              </div>
+          {step === "bidding" && (
+            <div className="text-xs text-yellow-400 flex items-center gap-2">
+              <span>⏳</span>
+              Authenticating with TEE and sealing bid...
             </div>
           )}
 
