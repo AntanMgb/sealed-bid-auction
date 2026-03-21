@@ -25,7 +25,7 @@ use crate::errors::AuctionError;
 ///
 /// MUST be called via: https://tee.magicblock.app?token={authToken}
 /// Pass all Bid PDAs as `remaining_accounts` (derive from auction.bidders list).
-pub fn handler(ctx: Context<CloseAuction>) -> Result<()> {
+pub fn handler<'a>(ctx: Context<'_, '_, 'a, 'a, CloseAuction<'a>>) -> Result<()> {
     // Validate state (immutable checks first)
     // Accept both Created and Delegated: the #[delegate] macro doesn't update
     // the status field, so the TEE copy still has status=Created even though
