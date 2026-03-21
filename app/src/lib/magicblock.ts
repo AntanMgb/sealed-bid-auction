@@ -53,9 +53,11 @@ export async function createTeeSession(
 ): Promise<TeeSession> {
   const pubkeyStr = walletPublicKey.toBase58();
 
+  const origin = window.location.origin;
+
   // Step 1: Get challenge from TEE via server-side proxy
   const challengeResp = await fetch(
-    `/api/tee-auth?path=auth/challenge&pubkey=${pubkeyStr}`
+    `${origin}/api/tee-auth?path=auth/challenge&pubkey=${pubkeyStr}`
   );
   if (!challengeResp.ok) {
     throw new Error(`TEE challenge failed: ${challengeResp.status} ${await challengeResp.text()}`);
@@ -76,7 +78,7 @@ export async function createTeeSession(
   const signatureString = bs58.encode(signature);
 
   // Step 3: Exchange signature for auth token via server-side proxy
-  const loginResp = await fetch(`/api/tee-auth?path=auth/login`, {
+  const loginResp = await fetch(`${origin}/api/tee-auth?path=auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -98,7 +100,7 @@ export async function createTeeSession(
 
   // Step 4: Create Connection that routes through our server-side RPC proxy.
   // Pass token both in URL (reliable) and header (backup).
-  const proxyUrl = `/api/tee-rpc?teetoken=${encodeURIComponent(token)}`;
+  const proxyUrl = `${origin}/api/tee-rpc?teetoken=${encodeURIComponent(token)}`;
   const teeConnection = new Connection(proxyUrl, {
     commitment: "confirmed",
     httpHeaders: { "X-Tee-Token": token },
