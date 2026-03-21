@@ -30,6 +30,7 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
   const [commitTxSig, setCommitTxSig] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [timeLeft, setTimeLeft] = useState<string>("");
+  const [knownBidders, setKnownBidders] = useState<string[]>([]);
 
   const auctionPda = new PublicKey(auctionPdaStr);
 
@@ -133,6 +134,12 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       // Method 3: Fall back to L1 state
       if (bidders.length === 0 && auction.bidders.length > 0) {
         bidders = auction.bidders;
+      }
+
+      // Method 4: Use locally tracked bidders from this session
+      if (bidders.length === 0 && knownBidders.length > 0) {
+        bidders = knownBidders.map((b) => new PublicKey(b));
+        console.log("[TEE] Using locally tracked bidders:", bidders.length);
       }
 
       console.log("[TEE] Bidders for close:", bidders.length, bidders.map(b => b.toBase58()));
@@ -248,7 +255,16 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
             <BidForm
               auctionPda={auctionPda}
               auction={auction}
-              onBidPlaced={refresh}
+              onBidPlaced={() => {
+                if (publicKey) {
+                  setKnownBidders((prev) =>
+                    prev.includes(publicKey.toBase58())
+                      ? prev
+                      : [...prev, publicKey.toBase58()]
+                  );
+                }
+                refresh();
+              }}
             />
           )}
 
