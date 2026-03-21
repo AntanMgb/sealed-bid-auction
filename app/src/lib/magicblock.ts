@@ -11,6 +11,7 @@
  */
 
 import { Connection, PublicKey } from "@solana/web3.js";
+import { ConnectionMagicRouter } from "@magicblock-labs/ephemeral-rollups-sdk";
 import bs58 from "bs58";
 import { MAGIC_ROUTER_WSS, SOLANA_DEVNET_RPC } from "./constants";
 
@@ -19,8 +20,8 @@ import { MAGIC_ROUTER_WSS, SOLANA_DEVNET_RPC } from "./constants";
 export interface TeeSession {
   /** Authenticated TEE endpoint URL (with token) */
   teeEndpoint: string;
-  /** Solana Connection pointed at the TEE */
-  teeConnection: Connection;
+  /** Solana Connection pointed at the TEE (uses ER-specific blockhash) */
+  teeConnection: ConnectionMagicRouter;
   /** Attestation report from the TEE (proves Intel TDX) */
   attestation: TeeAttestation | null;
 }
@@ -98,10 +99,11 @@ export async function createTeeSession(
   const token: string = authJson.token;
   console.log("[TEE] Authenticated, token length:", token.length, "preview:", token.substring(0, 30));
 
-  // Step 4: Create Connection that routes through our server-side RPC proxy.
-  // Pass token both in URL (reliable) and header (backup).
+  // Step 4: Create ConnectionMagicRouter through our server-side proxy.
+  // ConnectionMagicRouter uses getBlockhashForAccounts (ER-specific blockhash)
+  // instead of getLatestBlockhash, which is required for ER transactions.
   const proxyUrl = `${origin}/api/tee-rpc?teetoken=${encodeURIComponent(token)}`;
-  const teeConnection = new Connection(proxyUrl, {
+  const teeConnection = new ConnectionMagicRouter(proxyUrl, {
     commitment: "confirmed",
     httpHeaders: { "X-Tee-Token": token },
   });

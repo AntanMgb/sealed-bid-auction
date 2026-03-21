@@ -5,7 +5,8 @@
 
 import * as anchor from "@coral-xyz/anchor";
 import { Program, BN, AnchorProvider } from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { ConnectionMagicRouter } from "@magicblock-labs/ephemeral-rollups-sdk";
 import {
   PROGRAM_ID,
   AUCTION_SEED,
@@ -124,6 +125,40 @@ export async function delegateAuction(
   return tx;
 }
 
+/**
+ * Send a transaction to the ER via ConnectionMagicRouter.
+ * Uses getBlockhashForAccounts (ER-specific) instead of getLatestBlockhash.
+ */
+async function sendToER(
+  program: Program,
+  tx: Transaction,
+  feePayer: PublicKey
+): Promise<string> {
+  const conn = program.provider.connection;
+  tx.feePayer = feePayer;
+
+  // Use ConnectionMagicRouter's blockhash if available
+  if (conn instanceof ConnectionMagicRouter) {
+    const bhData = await conn.getLatestBlockhashForTransaction(tx);
+    tx.recentBlockhash = bhData.blockhash;
+    tx.lastValidBlockHeight = bhData.lastValidBlockHeight;
+  } else {
+    const bh = await conn.getLatestBlockhash();
+    tx.recentBlockhash = bh.blockhash;
+    tx.lastValidBlockHeight = bh.lastValidBlockHeight;
+  }
+
+  // Sign via wallet adapter
+  const wallet = (program.provider as AnchorProvider).wallet;
+  const signed = await wallet.signTransaction(tx);
+
+  const sig = await conn.sendRawTransaction(signed.serialize(), {
+    skipPreflight: true,
+  });
+  console.log("[PER/TEE] tx sent:", sig);
+  return sig;
+}
+
 /** Step 4 (PER/TEE): Place a sealed bid */
 export async function placeBid(
   program: Program,
@@ -133,29 +168,18 @@ export async function placeBid(
 ): Promise<string> {
   const bidPda = getBidPda(auctionPda, bidder);
 
-  try {
-    const tx = await program.methods
-      .placeBid(amount)
-      .accounts({
-        bidder,
-        auction: auctionPda,
-        bid: bidPda,
-      })
-      .rpc({ commitment: "confirmed", skipPreflight: true });
+  const tx = await program.methods
+    .placeBid(amount)
+    .accounts({
+      bidder,
+      auction: auctionPda,
+      bid: bidPda,
+    })
+    .transaction();
 
-    console.log("[PER/TEE] place_bid tx:", tx);
-    return tx;
-  } catch (err: unknown) {
-    // Confirmation timeout is expected — the TEE proxy has no WebSocket
-    // for confirmation. The transaction was still sent successfully.
-    const msg = err instanceof Error ? err.message : String(err);
-    const sigMatch = msg.match(/Check signature (\w+)/);
-    if (sigMatch && msg.includes("was not confirmed")) {
-      console.log("[PER/TEE] place_bid sent (confirmation timeout):", sigMatch[1]);
-      return sigMatch[1];
-    }
-    throw err;
-  }
+  const sig = await sendToER(program, tx, bidder);
+  console.log("[PER/TEE] place_bid tx:", sig);
+  return sig;
 }
 
 /** Step 5 (PER/TEE): Close auction — computes winner in TEE, commits to L1 */
@@ -165,34 +189,24 @@ export async function closeAuction(
   auctionPda: PublicKey,
   bidders: PublicKey[]
 ): Promise<string> {
-  // Derive all Bid PDAs to pass as remaining_accounts
   const bidAccounts = bidders.map((b) => ({
     pubkey: getBidPda(auctionPda, b),
     isSigner: false,
     isWritable: false,
   }));
 
-  try {
-    const tx = await program.methods
-      .closeAuction()
-      .accounts({
-        payer,
-        auction: auctionPda,
-      })
-      .remainingAccounts(bidAccounts)
-      .rpc({ commitment: "confirmed", skipPreflight: true });
+  const tx = await program.methods
+    .closeAuction()
+    .accounts({
+      payer,
+      auction: auctionPda,
+    })
+    .remainingAccounts(bidAccounts)
+    .transaction();
 
-    console.log("[PER/TEE] close_auction tx:", tx);
-    return tx;
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const sigMatch = msg.match(/Check signature (\w+)/);
-    if (sigMatch && msg.includes("was not confirmed")) {
-      console.log("[PER/TEE] close_auction sent (confirmation timeout):", sigMatch[1]);
-      return sigMatch[1];
-    }
-    throw err;
-  }
+  const sig = await sendToER(program, tx, payer);
+  console.log("[PER/TEE] close_auction tx:", sig);
+  return sig;
 }
 
 /** Step 6 (L1): Settle auction — winner pays */
