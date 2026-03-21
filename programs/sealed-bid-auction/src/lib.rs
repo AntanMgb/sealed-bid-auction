@@ -69,6 +69,19 @@ pub mod sealed_bid_auction {
         delegate::handler(ctx, auction_id)
     }
 
+    /// Create an empty Bid PDA on L1.
+    /// Must be called BEFORE delegate_bid and place_bid.
+    pub fn init_bid(ctx: Context<InitBid>) -> Result<()> {
+        init_bid::handler(ctx)
+    }
+
+    /// Delegate the Bid PDA to the PER/TEE.
+    /// Called on L1 after init_bid.
+    /// Pass the TEE validator as remaining_accounts[0].
+    pub fn delegate_bid(ctx: Context<DelegateBid>) -> Result<()> {
+        init_bid::delegate_handler(ctx)
+    }
+
     // ── PER / TEE ────────────────────────────────────────────────────────────
 
     /// Place a sealed bid. MUST be sent to the TEE endpoint.

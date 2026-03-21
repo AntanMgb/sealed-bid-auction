@@ -189,7 +189,7 @@ export function subscribeToAuctionEvents(
         offset += 4;
 
         const status = data[offset];
-        offset += 2; // status enum (1 byte discriminant + padding)
+        offset += 1; // status enum: Borsh uses 1 byte for simple enums (no padding)
 
         if (bidCount > lastBidCount) {
           // New bid received — emit without amount
@@ -209,19 +209,23 @@ export function subscribeToAuctionEvents(
 
         // Status 2 = Closed (winner computed by TEE)
         if (status === 2) {
+          const winnerBytes = data.slice(offset, offset + 32);
           offset += 32; // winner pubkey
-          const winnerBytes = data.slice(offset - 32, offset);
           const winnerPubkey = new PublicKey(winnerBytes).toBase58();
           const winningBid = data.readBigUInt64LE(offset);
+          const hasWinner = winnerPubkey !== PublicKey.default.toBase58();
 
           onEvent({
             type: "auction_closed",
             timestamp: Date.now(),
             data: {
-              winner: winnerPubkey,
-              winningBid: winningBid.toString(),
+              winner: hasWinner ? winnerPubkey : null,
+              winningBid: hasWinner ? winningBid.toString() : "0",
+              bidCount,
               slot: context.slot,
-              message: "Winner computed in TEE and committed to L1",
+              message: hasWinner
+                ? "Winner computed in TEE and committed to L1"
+                : "Auction closed — no valid bids above reserve price",
             },
           });
         }

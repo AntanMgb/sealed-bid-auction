@@ -63,7 +63,9 @@ impl Auction {
 
     pub fn is_accepting_bids(&self) -> bool {
         let clock = Clock::get().unwrap();
-        self.status == AuctionStatus::Delegated
+        // Accept both Created and Delegated: the #[delegate] macro doesn't update
+        // the status field, so the TEE copy still has status=Created.
+        (self.status == AuctionStatus::Delegated || self.status == AuctionStatus::Created)
             && clock.unix_timestamp < self.end_time
     }
 

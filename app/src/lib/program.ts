@@ -127,6 +127,51 @@ export async function delegateAuction(
   return tx;
 }
 
+/** Step 3b (L1): Create empty Bid PDA */
+export async function initBid(
+  program: Program,
+  bidder: PublicKey,
+  auctionPda: PublicKey
+): Promise<string> {
+  const bidPda = getBidPda(auctionPda, bidder);
+
+  const tx = await program.methods
+    .initBid()
+    .accounts({
+      bidder,
+      auction: auctionPda,
+      bid: bidPda,
+    })
+    .rpc({ commitment: "confirmed" });
+
+  console.log("[L1] init_bid tx:", tx);
+  return tx;
+}
+
+/** Step 3c (L1): Delegate Bid PDA to TEE */
+export async function delegateBid(
+  program: Program,
+  bidder: PublicKey,
+  auctionPda: PublicKey
+): Promise<string> {
+  const bidPda = getBidPda(auctionPda, bidder);
+
+  const tx = await program.methods
+    .delegateBid()
+    .accounts({
+      bidder,
+      auction: auctionPda,
+      bid: bidPda,
+    })
+    .remainingAccounts([
+      { pubkey: TEE_VALIDATOR_DEVNET, isSigner: false, isWritable: false },
+    ])
+    .rpc({ commitment: "confirmed" });
+
+  console.log("[L1] delegate_bid tx:", tx);
+  return tx;
+}
+
 /**
  * Send a transaction to the ER via ConnectionMagicRouter.
  * Uses getBlockhashForAccounts (ER-specific) instead of getLatestBlockhash.

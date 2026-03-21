@@ -10,6 +10,8 @@ import {
 } from "@magicblock-labs/ephemeral-rollups-sdk";
 import {
   placeBid,
+  initBid,
+  delegateBid,
   getProgram,
 } from "@/lib/program";
 import { createTeeSession, getDevnetConnection } from "@/lib/magicblock";
@@ -57,7 +59,7 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
     }
 
     try {
-      // ── Step 1: Top up ephemeral balance for ER fees ──────────────────────
+      // ── Step 1: Top up escrow + create & delegate Bid PDA on L1 ──────────
       setStep("escrow");
       const devnetConn = getDevnetConnection();
 
@@ -77,6 +79,19 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
       const topUpSig = await devnetConn.sendRawTransaction(signedTopUp.serialize());
       await devnetConn.confirmTransaction(topUpSig, "confirmed");
       console.log("[L1] Escrow top-up tx:", topUpSig);
+
+      // Create and delegate the Bid PDA on L1 (ER requires pre-created accounts)
+      const l1Provider = new AnchorProvider(
+        devnetConn,
+        { publicKey, signTransaction, signAllTransactions: async (txs) => txs },
+        { commitment: "confirmed" }
+      );
+      const l1Program = getProgram(l1Provider);
+      await initBid(l1Program, publicKey, auctionPda);
+      console.log("[L1] Bid PDA created");
+
+      await delegateBid(l1Program, publicKey, auctionPda);
+      console.log("[L1] Bid PDA delegated to TEE");
 
       // ── Step 2: Authenticate with TEE ─────────────────────────────────────
       setStep("bidding");

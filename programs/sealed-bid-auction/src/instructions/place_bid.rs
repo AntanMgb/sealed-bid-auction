@@ -90,19 +90,16 @@ pub struct PlaceBid<'info> {
     )]
     pub auction: Account<'info, Auction>,
 
-    /// Private Bid PDA — created on PER, protected by Permission Group.
+    /// Private Bid PDA — created + delegated on L1 by `init_bid`,
+    /// updated here on the TEE with the actual bid amount.
     /// Only the bidder can read `amount` via TEE RPC; the TEE program can
     /// read it during `close_auction` to compute the winner.
     #[account(
-        init,
-        payer = bidder,
-        space = Bid::LEN,
+        mut,
         seeds = [BID_SEED, auction.key().as_ref(), bidder.key().as_ref()],
-        bump,
+        bump = bid.bump,
     )]
     pub bid: Account<'info, Bid>,
-
-    pub system_program: Program<'info, System>,
 }
 
 /// Public event emitted per bid — NO amount included.
