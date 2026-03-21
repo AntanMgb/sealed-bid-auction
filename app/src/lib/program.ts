@@ -133,17 +133,29 @@ export async function placeBid(
 ): Promise<string> {
   const bidPda = getBidPda(auctionPda, bidder);
 
-  const tx = await program.methods
-    .placeBid(amount)
-    .accounts({
-      bidder,
-      auction: auctionPda,
-      bid: bidPda,
-    })
-    .rpc({ commitment: "confirmed", skipPreflight: true });
+  try {
+    const tx = await program.methods
+      .placeBid(amount)
+      .accounts({
+        bidder,
+        auction: auctionPda,
+        bid: bidPda,
+      })
+      .rpc({ commitment: "confirmed", skipPreflight: true });
 
-  console.log("[PER/TEE] place_bid tx:", tx);
-  return tx;
+    console.log("[PER/TEE] place_bid tx:", tx);
+    return tx;
+  } catch (err: unknown) {
+    // Confirmation timeout is expected — the TEE proxy has no WebSocket
+    // for confirmation. The transaction was still sent successfully.
+    const msg = err instanceof Error ? err.message : String(err);
+    const sigMatch = msg.match(/Check signature (\w+)/);
+    if (sigMatch && msg.includes("was not confirmed")) {
+      console.log("[PER/TEE] place_bid sent (confirmation timeout):", sigMatch[1]);
+      return sigMatch[1];
+    }
+    throw err;
+  }
 }
 
 /** Step 5 (PER/TEE): Close auction — computes winner in TEE, commits to L1 */
@@ -160,17 +172,27 @@ export async function closeAuction(
     isWritable: false,
   }));
 
-  const tx = await program.methods
-    .closeAuction()
-    .accounts({
-      payer,
-      auction: auctionPda,
-    })
-    .remainingAccounts(bidAccounts)
-    .rpc({ commitment: "confirmed", skipPreflight: true });
+  try {
+    const tx = await program.methods
+      .closeAuction()
+      .accounts({
+        payer,
+        auction: auctionPda,
+      })
+      .remainingAccounts(bidAccounts)
+      .rpc({ commitment: "confirmed", skipPreflight: true });
 
-  console.log("[PER/TEE] close_auction tx:", tx);
-  return tx;
+    console.log("[PER/TEE] close_auction tx:", tx);
+    return tx;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const sigMatch = msg.match(/Check signature (\w+)/);
+    if (sigMatch && msg.includes("was not confirmed")) {
+      console.log("[PER/TEE] close_auction sent (confirmation timeout):", sigMatch[1]);
+      return sigMatch[1];
+    }
+    throw err;
+  }
 }
 
 /** Step 6 (L1): Settle auction — winner pays */
