@@ -14,7 +14,10 @@ import {
   TEE_VALIDATOR_DEVNET,
   PERMISSION_PROGRAM_ID,
 } from "./constants";
-import IDL from "../idl/sealed_bid_auction.json";
+import rawIdl from "../idl/sealed_bid_auction.json";
+
+// Inject the program address into the IDL so Anchor knows where to send txs
+const IDL = { ...rawIdl, address: PROGRAM_ID.toBase58() };
 
 // ─── PDA Helpers ─────────────────────────────────────────────────────────────
 
