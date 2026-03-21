@@ -21,10 +21,12 @@ export const MAGIC_ROUTER_WSS = "wss://devnet-router.magicblock.app/";
 
 /**
  * Private Ephemeral Rollup (TEE) endpoint.
- * Requires an auth token obtained via `getAuthToken()`.
- * All bid submission and winner computation go through here.
+ * Uses local API proxy (/api/tee) to bypass CORS restrictions
+ * when running from Codespaces or other non-localhost origins.
  */
-export const TEE_RPC_BASE = "https://tee.magicblock.app";
+export const TEE_RPC_BASE = typeof window !== "undefined"
+  ? `${window.location.origin}/api/tee`
+  : "https://tee.magicblock.app";
 
 // ─── Validators ──────────────────────────────────────────────────────────────
 

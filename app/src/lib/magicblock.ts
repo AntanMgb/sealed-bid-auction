@@ -84,7 +84,6 @@ export async function createTeeSession(
 
   const teeConnection = new Connection(teeEndpoint, {
     commitment: "confirmed",
-    wsEndpoint: teeEndpoint.replace("https://", "wss://"),
   });
 
   return { teeEndpoint, teeConnection, attestation };
