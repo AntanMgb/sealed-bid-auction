@@ -81,7 +81,7 @@ pub mod sealed_bid_auction {
     /// Close the auction and compute the winner inside the TEE.
     /// Pass all Bid PDAs as remaining_accounts.
     /// Automatically commits result to L1 with TEE attestation.
-    pub fn close_auction(ctx: Context<CloseAuction>) -> Result<()> {
+    pub fn close_auction<'a>(ctx: Context<'_, '_, 'a, 'a, CloseAuction<'a>>) -> Result<()> {
         close_auction::handler(ctx)
     }
 
