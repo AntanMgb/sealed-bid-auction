@@ -102,9 +102,39 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       );
       const teeProgram = getProgram(teeProvider);
 
-      // Fetch auction state from TEE (not L1) to get actual bidders list
-      const teeAuction = await fetchAuction(teeProgram, auctionPda);
-      const bidders = teeAuction?.bidders ?? auction.bidders;
+      // Get bidders list — try multiple sources
+      let bidders: PublicKey[] = [];
+
+      // Method 1: Scan for Bid accounts on TEE by matching auction field
+      try {
+        const bidAccounts = await teeProgram.account.bid.all([
+          { memcmp: { offset: 8, bytes: auctionPda.toBase58() } },
+        ]);
+        bidders = bidAccounts.map((b) => (b.account as { bidder: PublicKey }).bidder);
+        console.log("[TEE] Found bid accounts via scan:", bidders.length);
+      } catch (err) {
+        console.warn("[TEE] Bid account scan failed:", err);
+      }
+
+      // Method 2: Fetch auction.bidders from TEE
+      if (bidders.length === 0) {
+        try {
+          const teeAuction = await fetchAuction(teeProgram, auctionPda);
+          console.log("[TEE] teeAuction fetch result:", teeAuction ? "ok" : "null",
+            "bidders:", teeAuction?.bidders?.length ?? 0);
+          if (teeAuction?.bidders?.length) {
+            bidders = teeAuction.bidders;
+          }
+        } catch (err) {
+          console.warn("[TEE] Auction fetch from TEE failed:", err);
+        }
+      }
+
+      // Method 3: Fall back to L1 state
+      if (bidders.length === 0 && auction.bidders.length > 0) {
+        bidders = auction.bidders;
+      }
+
       console.log("[TEE] Bidders for close:", bidders.length, bidders.map(b => b.toBase58()));
 
       const sig = await closeAuction(
