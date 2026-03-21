@@ -42,15 +42,12 @@ pub fn handler(ctx: Context<PlaceBid>, amount: u64) -> Result<()> {
         AuctionError::MaxBiddersReached
     );
 
-    // Create the private Bid PDA on PER
+    // Update the Bid PDA on PER (already created + delegated on L1 by init_bid)
     let bid = &mut ctx.accounts.bid;
     let clock = Clock::get()?;
 
-    bid.auction = auction.key();
-    bid.bidder = ctx.accounts.bidder.key();
     bid.amount = amount; // ← stored privately in TEE, permission-gated
     bid.timestamp = clock.unix_timestamp;
-    bid.bump = ctx.bumps.bid;
 
     // Update public auction state (real-time visible on PER connection)
     auction.bidders.push(ctx.accounts.bidder.key());
