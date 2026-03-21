@@ -172,6 +172,28 @@ async function sendToER(
     skipPreflight: true,
   });
   console.log("[PER/TEE] tx sent:", sig);
+
+  // Check transaction status after a short delay
+  await new Promise((r) => setTimeout(r, 2000));
+  try {
+    const status = await conn.getSignatureStatuses([sig]);
+    console.log("[PER/TEE] tx status:", JSON.stringify(status.value));
+    const txDetail = await conn.getTransaction(sig, {
+      commitment: "confirmed",
+      maxSupportedTransactionVersion: 0,
+    });
+    if (txDetail?.meta?.err) {
+      console.error("[PER/TEE] tx ERROR:", JSON.stringify(txDetail.meta.err));
+      console.log("[PER/TEE] tx logs:", txDetail.meta.logMessages);
+    } else if (txDetail) {
+      console.log("[PER/TEE] tx SUCCESS, logs:", txDetail.meta?.logMessages);
+    } else {
+      console.warn("[PER/TEE] tx not found on ER (may still be processing)");
+    }
+  } catch (err) {
+    console.warn("[PER/TEE] Could not check tx status:", err);
+  }
+
   return sig;
 }
 
