@@ -140,7 +140,7 @@ export async function placeBid(
       auction: auctionPda,
       bid: bidPda,
     })
-    .rpc({ commitment: "confirmed" });
+    .rpc({ commitment: "confirmed", skipPreflight: true });
 
   console.log("[PER/TEE] place_bid tx:", tx);
   return tx;
@@ -167,7 +167,7 @@ export async function closeAuction(
       auction: auctionPda,
     })
     .remainingAccounts(bidAccounts)
-    .rpc({ commitment: "confirmed" });
+    .rpc({ commitment: "confirmed", skipPreflight: true });
 
   console.log("[PER/TEE] close_auction tx:", tx);
   return tx;
