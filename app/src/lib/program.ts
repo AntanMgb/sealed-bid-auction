@@ -278,10 +278,21 @@ export async function fetchAuction(
   auctionPda: PublicKey
 ): Promise<AuctionState | null> {
   try {
+    // Try standard fetch first (works when our program owns the account)
     const data = await (program.account as any).auction.fetch(auctionPda);
     return data as unknown as AuctionState;
   } catch {
-    return null;
+    // After delegation, the Delegation Program owns the account on L1.
+    // Anchor's fetch() rejects it (owner mismatch). Decode raw data instead.
+    try {
+      const conn = program.provider.connection;
+      const accountInfo = await conn.getAccountInfo(auctionPda);
+      if (!accountInfo?.data) return null;
+      const decoded = program.coder.accounts.decode("auction", accountInfo.data);
+      return decoded as unknown as AuctionState;
+    } catch {
+      return null;
+    }
   }
 }
 
