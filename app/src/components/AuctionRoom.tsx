@@ -125,7 +125,9 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
     );
   }
 
-  const isDelegated = "delegated" in auction.status;
+  // After create+delegate, L1 status may still show "created" since
+  // delegate_auction doesn't update the status field. Treat both as active.
+  const isDelegated = "delegated" in auction.status || "created" in auction.status;
   const isClosed = "closed" in auction.status || "settled" in auction.status;
   const isExpired = Date.now() >= auction.endTime.toNumber() * 1000;
   const isSellerViewing =
