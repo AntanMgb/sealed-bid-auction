@@ -1,20 +1,17 @@
 use anchor_lang::prelude::*;
 use ephemeral_rollups_sdk::anchor::delegate;
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
-use crate::state::{Auction, AuctionStatus, Bid, AUCTION_SEED, BID_SEED};
-use crate::errors::AuctionError;
+use crate::state::{Bid, BID_SEED};
 
 /// Creates an empty Bid PDA on L1.
 /// Must be called BEFORE `delegate_bid` and `place_bid`.
 /// The ER does not allow `init` (account creation) directly —
 /// accounts must be created on L1 first.
+///
+/// Note: `auction` is passed as UncheckedAccount because after delegation
+/// its owner on L1 is the Delegation Program, not our program.
+/// We only need auction.key() for the bid PDA seeds.
 pub fn handler(ctx: Context<InitBid>) -> Result<()> {
-    require!(
-        ctx.accounts.auction.status == AuctionStatus::Delegated
-            || ctx.accounts.auction.status == AuctionStatus::Created,
-        AuctionError::NotDelegated
-    );
-
     let bid = &mut ctx.accounts.bid;
     bid.auction = ctx.accounts.auction.key();
     bid.bidder = ctx.accounts.bidder.key();
@@ -65,15 +62,10 @@ pub struct InitBid<'info> {
     #[account(mut)]
     pub bidder: Signer<'info>,
 
-    #[account(
-        seeds = [
-            AUCTION_SEED,
-            auction.seller.as_ref(),
-            &auction.auction_id.to_le_bytes(),
-        ],
-        bump = auction.bump,
-    )]
-    pub auction: Account<'info, Auction>,
+    /// CHECK: The auction PDA. After delegation its owner is the Delegation
+    /// Program on L1, so we cannot use Account<Auction>. We only need its
+    /// key for the bid PDA seed derivation.
+    pub auction: UncheckedAccount<'info>,
 
     #[account(
         init,
@@ -93,15 +85,8 @@ pub struct DelegateBid<'info> {
     #[account(mut)]
     pub bidder: Signer<'info>,
 
-    #[account(
-        seeds = [
-            AUCTION_SEED,
-            auction.seller.as_ref(),
-            &auction.auction_id.to_le_bytes(),
-        ],
-        bump = auction.bump,
-    )]
-    pub auction: Account<'info, Auction>,
+    /// CHECK: The auction PDA. Only needed for its key.
+    pub auction: UncheckedAccount<'info>,
 
     /// CHECK: The Bid PDA to delegate. Already initialized by init_bid.
     #[account(mut, del)]
