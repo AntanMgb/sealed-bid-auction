@@ -3,7 +3,11 @@
 import { FC, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { AnchorProvider, BN } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
+import {
+  escrowPdaFromEscrowAuthority,
+  createTopUpEscrowInstruction,
+} from "@magicblock-labs/ephemeral-rollups-sdk";
 import {
   createBidPermission,
   placeBid,
@@ -55,10 +59,28 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
     }
 
     try {
-      // ── Step 1: Authenticate with TEE ───────────────────────────────────────
-      // Signs a challenge so the TEE middleware knows who's bidding.
-      // Permission group is skipped because the auction account is delegated
-      // (owned by Delegation Program on L1), so L1 instructions can't read it.
+      // ── Step 1: Top up ephemeral balance for ER fees ──────────────────────
+      setStep("permission");
+      const devnetConn = getDevnetConnection();
+
+      const escrowPda = escrowPdaFromEscrowAuthority(publicKey);
+      const topUpIx = createTopUpEscrowInstruction(
+        escrowPda,
+        publicKey,
+        publicKey,
+        BigInt(5_000_000), // 0.005 SOL for ER fees
+        255
+      );
+      const topUpTx = new Transaction().add(topUpIx);
+      topUpTx.feePayer = publicKey;
+      const { blockhash } = await devnetConn.getLatestBlockhash();
+      topUpTx.recentBlockhash = blockhash;
+      const signedTopUp = await signTransaction(topUpTx);
+      const topUpSig = await devnetConn.sendRawTransaction(signedTopUp.serialize());
+      await devnetConn.confirmTransaction(topUpSig, "confirmed");
+      console.log("[L1] Escrow top-up tx:", topUpSig);
+
+      // ── Step 2: Authenticate with TEE ─────────────────────────────────────
       setStep("bidding");
 
       const { teeConnection, attestation } = await createTeeSession(
@@ -71,8 +93,6 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
       }
 
       // ── Step 3: Place Sealed Bid on TEE ───────────────────────────────────
-      // Sent to https://tee.magicblock.app?token={authToken}
-      // The `amount` field goes into a private Bid PDA — never on L1.
       const teeProvider = new AnchorProvider(
         teeConnection,
         { publicKey, signTransaction, signAllTransactions: async (txs) => txs },

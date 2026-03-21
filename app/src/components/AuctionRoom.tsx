@@ -3,7 +3,11 @@
 import { FC, useEffect, useState, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { AnchorProvider, BN } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
+import {
+  escrowPdaFromEscrowAuthority,
+  createTopUpEscrowInstruction,
+} from "@magicblock-labs/ephemeral-rollups-sdk";
 import { formatDistanceToNow, formatDistance } from "date-fns";
 import {
   fetchAuction,
@@ -89,7 +93,22 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
     if (!publicKey || !signTransaction || !signMessage || !auction) return;
     setClosing(true);
     try {
-      // Authenticate with TEE first
+      // Top up ephemeral balance for ER fees
+      const devnetConn = getDevnetConnection();
+      const escrowPda = escrowPdaFromEscrowAuthority(publicKey);
+      const topUpIx = createTopUpEscrowInstruction(
+        escrowPda, publicKey, publicKey, BigInt(5_000_000), 255
+      );
+      const topUpTx = new Transaction().add(topUpIx);
+      topUpTx.feePayer = publicKey;
+      const { blockhash } = await devnetConn.getLatestBlockhash();
+      topUpTx.recentBlockhash = blockhash;
+      const signedTopUp = await signTransaction(topUpTx);
+      const topUpSig = await devnetConn.sendRawTransaction(signedTopUp.serialize());
+      await devnetConn.confirmTransaction(topUpSig, "confirmed");
+      console.log("[L1] Escrow top-up for close tx:", topUpSig);
+
+      // Authenticate with TEE
       const { teeConnection, attestation: att } = await createTeeSession(
         publicKey,
         signMessage
