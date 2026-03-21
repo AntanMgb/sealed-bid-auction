@@ -137,16 +137,32 @@ async function sendToER(
   const conn = program.provider.connection;
   tx.feePayer = feePayer;
 
-  // Use ConnectionMagicRouter's blockhash if available
+  // Try ER-specific blockhash first, fall back to standard
+  let blockhash: string | undefined;
+  let lastValidBlockHeight: number | undefined;
+
   if (conn instanceof ConnectionMagicRouter) {
-    const bhData = await conn.getLatestBlockhashForTransaction(tx);
-    tx.recentBlockhash = bhData.blockhash;
-    tx.lastValidBlockHeight = bhData.lastValidBlockHeight;
-  } else {
-    const bh = await conn.getLatestBlockhash();
-    tx.recentBlockhash = bh.blockhash;
-    tx.lastValidBlockHeight = bh.lastValidBlockHeight;
+    try {
+      const bhData = await conn.getLatestBlockhashForTransaction(tx);
+      if (bhData?.blockhash) {
+        blockhash = bhData.blockhash;
+        lastValidBlockHeight = bhData.lastValidBlockHeight;
+        console.log("[PER/TEE] Got ER blockhash via getBlockhashForAccounts");
+      }
+    } catch (err) {
+      console.warn("[PER/TEE] getBlockhashForAccounts failed, using standard:", err);
+    }
   }
+
+  if (!blockhash) {
+    const bh = await conn.getLatestBlockhash();
+    blockhash = bh.blockhash;
+    lastValidBlockHeight = bh.lastValidBlockHeight;
+    console.log("[PER/TEE] Got blockhash via getLatestBlockhash");
+  }
+
+  tx.recentBlockhash = blockhash;
+  tx.lastValidBlockHeight = lastValidBlockHeight;
 
   // Sign via wallet adapter
   const wallet = (program.provider as AnchorProvider).wallet;
