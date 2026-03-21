@@ -2,18 +2,17 @@
  * MagicBlock Private Ephemeral Rollup (TEE) client utilities.
  *
  * Handles:
- *   - TEE RPC integrity verification (ensures you're talking to a real TDX enclave)
  *   - Auth token acquisition (signs a challenge with the user's wallet)
- *   - Building PER connections
+ *   - Building PER connections (via server-side proxy to bypass CORS)
  *   - Real-time event subscription via the ER WebSocket
+ *
+ * All TEE requests go through /api/tee-auth and /api/tee-rpc server-side
+ * proxy routes to avoid CORS issues with tee.magicblock.app.
  */
 
 import { Connection, PublicKey } from "@solana/web3.js";
-import {
-  verifyTeeRpcIntegrity,
-  getAuthToken,
-} from "@magicblock-labs/ephemeral-rollups-sdk";
-import { TEE_RPC_BASE, MAGIC_ROUTER_WSS, SOLANA_DEVNET_RPC } from "./constants";
+import bs58 from "bs58";
+import { MAGIC_ROUTER_WSS, SOLANA_DEVNET_RPC } from "./constants";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,51 +41,68 @@ export interface TeeAttestation {
 /**
  * Establishes an authenticated session with the Private Ephemeral Rollup.
  *
- * Steps:
- *   1. Verify TEE RPC integrity (confirms Intel TDX hardware attestation)
- *   2. Sign a challenge with the user's wallet
- *   3. Return a Connection pointed at the authenticated TEE endpoint
+ * All requests go through our server-side proxy to bypass CORS:
+ *   1. GET /api/tee-auth → challenge from TEE
+ *   2. Sign challenge client-side with wallet
+ *   3. POST /api/tee-auth → auth token from TEE
+ *   4. Connection uses /api/tee-rpc with token in custom header
  */
 export async function createTeeSession(
   walletPublicKey: PublicKey,
   signMessage: (msg: Uint8Array) => Promise<Uint8Array>
 ): Promise<TeeSession> {
-  // Step 1: Verify the TEE endpoint is a genuine Intel TDX enclave.
-  // This is the "verifiable" part — before trusting the endpoint,
-  // we confirm its hardware attestation is valid.
-  let attestation: TeeAttestation | null = null;
-  try {
-    const integrityResult = await verifyTeeRpcIntegrity(TEE_RPC_BASE);
-    attestation = {
-      provider: "Intel TDX via MagicBlock",
-      validatorPubkey: integrityResult?.validatorPubkey ?? "unknown",
-      reportRaw: JSON.stringify(integrityResult ?? {}),
-      verifiedAt: Date.now(),
-    };
-    console.log("[TEE] Integrity verified:", attestation);
-  } catch (err) {
-    console.warn("[TEE] Integrity check failed (devnet may skip):", err);
+  const pubkeyStr = walletPublicKey.toBase58();
+
+  // Step 1: Get challenge from TEE via server-side proxy
+  const challengeResp = await fetch(
+    `/api/tee-auth?path=auth/challenge&pubkey=${pubkeyStr}`
+  );
+  if (!challengeResp.ok) {
+    throw new Error(`TEE challenge failed: ${challengeResp.status} ${await challengeResp.text()}`);
+  }
+  const { challenge, error: challengeError } = await challengeResp.json();
+  if (challengeError) {
+    throw new Error(`TEE challenge error: ${challengeError}`);
+  }
+  if (!challenge) {
+    throw new Error("No challenge received from TEE");
   }
 
-  // Step 2: Get an auth token by signing a challenge.
-  // The TEE middleware verifies this signature against the bidder's pubkey
-  // and issues a JWT-style token that authorises RPC calls.
-  const token = await getAuthToken(
-    TEE_RPC_BASE,
-    walletPublicKey,
-    async (message: Uint8Array) => {
-      const sig = await signMessage(message);
-      return sig;
-    }
-  );
+  console.log("[TEE] Got challenge, signing with wallet...");
 
-  const teeEndpoint = `${TEE_RPC_BASE}?token=${token}`;
+  // Step 2: Sign the challenge with the user's wallet
+  const challengeBytes = new Uint8Array(Buffer.from(challenge, "utf-8"));
+  const signature = await signMessage(challengeBytes);
+  const signatureString = bs58.encode(signature);
 
-  const teeConnection = new Connection(teeEndpoint, {
+  // Step 3: Exchange signature for auth token via server-side proxy
+  const loginResp = await fetch(`/api/tee-auth?path=auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      pubkey: pubkeyStr,
+      challenge,
+      signature: signatureString,
+    }),
+  });
+  if (!loginResp.ok) {
+    throw new Error(`TEE login failed: ${loginResp.status} ${await loginResp.text()}`);
+  }
+  const authJson = await loginResp.json();
+  if (!authJson.token) {
+    throw new Error("No token received from TEE");
+  }
+
+  console.log("[TEE] Authenticated, token obtained");
+
+  // Step 4: Create Connection that routes through our server-side RPC proxy.
+  // The proxy reads the token from X-Tee-Token header and forwards to TEE.
+  const teeConnection = new Connection("/api/tee-rpc", {
     commitment: "confirmed",
+    httpHeaders: { "X-Tee-Token": authJson.token },
   });
 
-  return { teeEndpoint, teeConnection, attestation };
+  return { teeEndpoint: "/api/tee-rpc", teeConnection, attestation: null };
 }
 
 // ─── Devnet L1 Connection ─────────────────────────────────────────────────────
