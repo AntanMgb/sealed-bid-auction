@@ -102,11 +102,16 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       );
       const teeProgram = getProgram(teeProvider);
 
+      // Fetch auction state from TEE (not L1) to get actual bidders list
+      const teeAuction = await fetchAuction(teeProgram, auctionPda);
+      const bidders = teeAuction?.bidders ?? auction.bidders;
+      console.log("[TEE] Bidders for close:", bidders.length, bidders.map(b => b.toBase58()));
+
       const sig = await closeAuction(
         teeProgram,
         publicKey,
         auctionPda,
-        auction.bidders
+        bidders
       );
       setCommitTxSig(sig);
       await refresh();
