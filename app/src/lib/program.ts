@@ -73,7 +73,7 @@ export async function createAuction(
 
   const tx = await program.methods
     .createAuction(auctionId, reservePrice, durationSeconds, title)
-    .accounts({
+    .accountsStrict({
       seller,
       auction: auctionPda,
       systemProgram: SystemProgram.programId,
@@ -95,7 +95,7 @@ export async function createBidPermission(
 
   const tx = await program.methods
     .createBidPermission()
-    .accounts({
+    .accountsStrict({
       bidder,
       auction: auctionPda,
       permissionGroup: permGroupPda,
@@ -117,7 +117,7 @@ export async function delegateAuction(
 ): Promise<string> {
   const tx = await program.methods
     .delegateAuction(auctionId)
-    .accounts({
+    .accountsStrict({
       payer: seller,
       auction: auctionPda,
     })
@@ -141,7 +141,7 @@ export async function placeBid(
 
   const tx = await program.methods
     .placeBid(amount)
-    .accounts({
+    .accountsStrict({
       bidder,
       auction: auctionPda,
       bid: bidPda,
@@ -169,7 +169,7 @@ export async function closeAuction(
 
   const tx = await program.methods
     .closeAuction()
-    .accounts({
+    .accountsStrict({
       payer,
       auction: auctionPda,
     })
@@ -189,7 +189,7 @@ export async function settleAuction(
 ): Promise<string> {
   const tx = await program.methods
     .settleAuction()
-    .accounts({
+    .accountsStrict({
       winner,
       seller,
       auction: auctionPda,
