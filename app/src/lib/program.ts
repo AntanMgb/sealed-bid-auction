@@ -14,6 +14,8 @@ import {
   PERM_GROUP_SEED,
   TEE_VALIDATOR_DEVNET,
   PERMISSION_PROGRAM_ID,
+  MAGIC_PROGRAM,
+  MAGIC_CONTEXT,
 } from "./constants";
 import IDL from "../idl/sealed_bid_auction.json";
 
@@ -53,7 +55,7 @@ export function getPermGroupPda(
 // ─── Program Client ───────────────────────────────────────────────────────────
 
 export function getProgram(provider: AnchorProvider): Program {
-  return new Program(IDL as anchor.Idl, provider);
+  return new Program(IDL as unknown as anchor.Idl, provider);
 }
 
 // ─── Instructions ─────────────────────────────────────────────────────────────
@@ -238,6 +240,8 @@ export async function closeAuction(
     .accounts({
       payer,
       auction: auctionPda,
+      magicContext: MAGIC_CONTEXT,
+      magicProgram: MAGIC_PROGRAM,
     })
     .remainingAccounts(bidAccounts)
     .transaction();
@@ -274,7 +278,7 @@ export async function fetchAuction(
   auctionPda: PublicKey
 ): Promise<AuctionState | null> {
   try {
-    const data = await program.account.auction.fetch(auctionPda);
+    const data = await (program.account as any).auction.fetch(auctionPda);
     return data as unknown as AuctionState;
   } catch {
     return null;

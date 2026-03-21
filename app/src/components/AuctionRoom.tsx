@@ -8,18 +8,17 @@ import {
   escrowPdaFromEscrowAuthority,
   createTopUpEscrowInstruction,
 } from "@magicblock-labs/ephemeral-rollups-sdk";
-import { formatDistanceToNow, formatDistance } from "date-fns";
+import { formatDistance } from "date-fns";
 import {
   fetchAuction,
   closeAuction,
   getProgram,
   AuctionState,
 } from "@/lib/program";
-import { subscribeToAuctionEvents, AuctionEvent, TeeAttestation, createTeeSession, getDevnetConnection } from "@/lib/magicblock";
+import { subscribeToAuctionEvents, AuctionEvent, TeeAttestation, createTeeSession, getDevnetConnection, getMagicRouterConnection } from "@/lib/magicblock";
 import { BidForm } from "./BidForm";
 import { ResultPanel } from "./ResultPanel";
 import { LiveFeed } from "./LiveFeed";
-import { getMagicRouterConnection } from "@/lib/magicblock";
 
 interface Props {
   auctionPdaStr: string;
@@ -33,17 +32,18 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
   const [attestation, setAttestation] = useState<TeeAttestation | null>(null);
   const [commitTxSig, setCommitTxSig] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  const [closeError, setCloseError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [knownBidders, setKnownBidders] = useState<string[]>([]);
 
   const auctionPda = new PublicKey(auctionPdaStr);
 
-  // Fetch auction state
+  // Fetch auction state via Magic Router (auto-routes to ER for delegated accounts)
   const refresh = useCallback(async () => {
     if (!publicKey || !signTransaction) return;
-    const devnetConnection = getDevnetConnection();
+    const routerConnection = getMagicRouterConnection();
     const provider = new AnchorProvider(
-      devnetConnection,
+      routerConnection,
       { publicKey, signTransaction, signAllTransactions: async (t) => t },
       { commitment: "confirmed" }
     );
@@ -53,7 +53,7 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
 
   useEffect(() => {
     refresh();
-    const id = setInterval(refresh, 4000);
+    const id = setInterval(refresh, 8000);
     return () => clearInterval(id);
   }, [refresh]);
 
@@ -92,12 +92,13 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
   async function handleClose() {
     if (!publicKey || !signTransaction || !signMessage || !auction) return;
     setClosing(true);
+    setCloseError(null);
     try {
       // Top up ephemeral balance for ER fees
       const devnetConn = getDevnetConnection();
       const escrowPda = escrowPdaFromEscrowAuthority(publicKey);
       const topUpIx = createTopUpEscrowInstruction(
-        escrowPda, publicKey, publicKey, BigInt(5_000_000), 255
+        escrowPda, publicKey, publicKey, 5_000_000, 255
       );
       const topUpTx = new Transaction().add(topUpIx);
       topUpTx.feePayer = publicKey;
@@ -122,26 +123,15 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       );
       const teeProgram = getProgram(teeProvider);
 
-      // Get bidders list — try multiple sources
-      let bidders: PublicKey[] = [];
+      // Get bidders list from auction state (read via Magic Router = ER state)
+      let bidders: PublicKey[] = auction.bidders.length > 0
+        ? auction.bidders
+        : knownBidders.map((b) => new PublicKey(b));
 
-      // Method 1: Scan for Bid accounts on TEE by matching auction field
-      try {
-        const bidAccounts = await teeProgram.account.bid.all([
-          { memcmp: { offset: 8, bytes: auctionPda.toBase58() } },
-        ]);
-        bidders = bidAccounts.map((b) => (b.account as { bidder: PublicKey }).bidder);
-        console.log("[TEE] Found bid accounts via scan:", bidders.length);
-      } catch (err) {
-        console.warn("[TEE] Bid account scan failed:", err);
-      }
-
-      // Method 2: Fetch auction.bidders from TEE
+      // Fallback: scan TEE for Bid accounts if we still have none
       if (bidders.length === 0) {
         try {
           const teeAuction = await fetchAuction(teeProgram, auctionPda);
-          console.log("[TEE] teeAuction fetch result:", teeAuction ? "ok" : "null",
-            "bidders:", teeAuction?.bidders?.length ?? 0);
           if (teeAuction?.bidders?.length) {
             bidders = teeAuction.bidders;
           }
@@ -150,18 +140,7 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
         }
       }
 
-      // Method 3: Fall back to L1 state
-      if (bidders.length === 0 && auction.bidders.length > 0) {
-        bidders = auction.bidders;
-      }
-
-      // Method 4: Use locally tracked bidders from this session
-      if (bidders.length === 0 && knownBidders.length > 0) {
-        bidders = knownBidders.map((b) => new PublicKey(b));
-        console.log("[TEE] Using locally tracked bidders:", bidders.length);
-      }
-
-      console.log("[TEE] Bidders for close:", bidders.length, bidders.map(b => b.toBase58()));
+      console.log("[Close] Bidders:", bidders.length, bidders.map(b => b.toBase58()));
 
       const sig = await closeAuction(
         teeProgram,
@@ -173,6 +152,7 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       await refresh();
     } catch (err) {
       console.error(err);
+      setCloseError(err instanceof Error ? err.message : "Close failed");
     } finally {
       setClosing(false);
     }
@@ -307,6 +287,11 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
                 will read all sealed bids, find the highest, and commit the
                 result to L1 with an Intel TDX attestation.
               </p>
+              {closeError && (
+                <div className="text-red-400 text-xs bg-red-900/20 border border-red-700/50 rounded p-2 mb-3">
+                  {closeError}
+                </div>
+              )}
               <button
                 onClick={handleClose}
                 disabled={closing}

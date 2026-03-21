@@ -3,15 +3,13 @@
 import { FC, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { AnchorProvider, BN } from "@coral-xyz/anchor";
-import { PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
+import { PublicKey, Transaction } from "@solana/web3.js";
 import {
   escrowPdaFromEscrowAuthority,
   createTopUpEscrowInstruction,
 } from "@magicblock-labs/ephemeral-rollups-sdk";
 import {
-  createBidPermission,
   placeBid,
-  getAuctionPda,
   getProgram,
 } from "@/lib/program";
 import { createTeeSession, getDevnetConnection } from "@/lib/magicblock";
@@ -37,7 +35,7 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
 
   const [amount, setAmount] = useState("");
   const [step, setStep] = useState<
-    "idle" | "permission" | "bidding" | "done" | "error"
+    "idle" | "escrow" | "bidding" | "done" | "error"
   >("idle");
   const [error, setError] = useState<string | null>(null);
   const [txSig, setTxSig] = useState<string | null>(null);
@@ -60,7 +58,7 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
 
     try {
       // ── Step 1: Top up ephemeral balance for ER fees ──────────────────────
-      setStep("permission");
+      setStep("escrow");
       const devnetConn = getDevnetConnection();
 
       const escrowPda = escrowPdaFromEscrowAuthority(publicKey);
@@ -68,7 +66,7 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
         escrowPda,
         publicKey,
         publicKey,
-        BigInt(5_000_000), // 0.005 SOL for ER fees
+        5_000_000, // 0.005 SOL for ER fees
         255
       );
       const topUpTx = new Transaction().add(topUpIx);
@@ -117,8 +115,6 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
     }
   }
 
-  const isActive = auction.is_accepting_bids ?? true;
-
   return (
     <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
       <h2 className="text-lg font-semibold text-white mb-1">Place Sealed Bid</h2>
@@ -166,6 +162,12 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
           )}
 
           {/* Progress indicator */}
+          {step === "escrow" && (
+            <div className="text-xs text-yellow-400 flex items-center gap-2">
+              <span>⏳</span>
+              Topping up ephemeral escrow for ER fees...
+            </div>
+          )}
           {step === "bidding" && (
             <div className="text-xs text-yellow-400 flex items-center gap-2">
               <span>⏳</span>
@@ -184,15 +186,15 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
               bg-yellow-500 hover:bg-yellow-400 text-black
               disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {step === "permission"
-              ? "Creating permission..."
+            {step === "escrow"
+              ? "Preparing escrow..."
               : step === "bidding"
                 ? "Sealing bid in TEE..."
                 : "Seal Bid in TEE 🔒"}
           </button>
 
           <p className="text-[10px] text-gray-600 text-center">
-            Two transactions: permission setup (L1) + bid submission (TEE)
+            Two transactions: escrow top-up (L1) + sealed bid (TEE)
           </p>
         </div>
       )}

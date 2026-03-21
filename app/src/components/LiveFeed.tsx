@@ -85,7 +85,7 @@ export const LiveFeed: FC<Props> = ({ events }) => {
                         </span>
                       </div>
                     )}
-                    {event.type === "auction_closed" && event.data.winner && (
+                    {event.type === "auction_closed" && !!event.data.winner && (
                       <div className="text-green-400 text-[10px] mt-0.5">
                         winner:{" "}
                         {String(event.data.winner).slice(0, 8)}...
@@ -96,7 +96,7 @@ export const LiveFeed: FC<Props> = ({ events }) => {
                         SOL
                       </div>
                     )}
-                    {event.data.slot && (
+                    {!!event.data.slot && (
                       <div className="text-gray-600 text-[10px]">
                         slot {String(event.data.slot)}
                       </div>

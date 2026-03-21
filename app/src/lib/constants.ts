@@ -50,6 +50,16 @@ export const DELEGATION_PROGRAM_ID = new PublicKey(
   "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
 );
 
+/** MagicBlock Magic Program — required for commit_and_undelegate */
+export const MAGIC_PROGRAM = new PublicKey(
+  "Magic11111111111111111111111111111111111111"
+);
+
+/** MagicBlock Magic Context — required for commit_and_undelegate */
+export const MAGIC_CONTEXT = new PublicKey(
+  "MagicContext1111111111111111111111111111111"
+);
+
 // ─── PDA Seeds ───────────────────────────────────────────────────────────────
 export const AUCTION_SEED = Buffer.from("auction");
 export const BID_SEED = Buffer.from("bid");

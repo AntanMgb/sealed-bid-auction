@@ -22,6 +22,7 @@ export const AppWalletProvider: FC<{ children: ReactNode }> = ({
   const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
 
   return (
+    // @ts-expect-error React 18 types conflict with wallet adapter
     <ConnectionProvider endpoint={MAGIC_ROUTER_RPC}>
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>{children}</WalletModalProvider>
