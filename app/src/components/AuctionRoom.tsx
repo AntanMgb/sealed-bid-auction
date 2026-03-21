@@ -1,0 +1,256 @@
+"use client";
+
+import { FC, useEffect, useState, useCallback } from "react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { AnchorProvider, BN } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
+import { formatDistanceToNow, formatDistance } from "date-fns";
+import {
+  fetchAuction,
+  closeAuction,
+  getProgram,
+  AuctionState,
+} from "@/lib/program";
+import { subscribeToAuctionEvents, AuctionEvent, TeeAttestation, createTeeSession } from "@/lib/magicblock";
+import { BidForm } from "./BidForm";
+import { ResultPanel } from "./ResultPanel";
+import { LiveFeed } from "./LiveFeed";
+import { getMagicRouterConnection } from "@/lib/magicblock";
+
+interface Props {
+  auctionPdaStr: string;
+}
+
+export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
+  const { publicKey, signTransaction, signMessage } = useWallet();
+  const { connection } = useConnection();
+
+  const [auction, setAuction] = useState<AuctionState | null>(null);
+  const [events, setEvents] = useState<AuctionEvent[]>([]);
+  const [attestation, setAttestation] = useState<TeeAttestation | null>(null);
+  const [commitTxSig, setCommitTxSig] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<string>("");
+
+  const auctionPda = new PublicKey(auctionPdaStr);
+
+  // Fetch auction state
+  const refresh = useCallback(async () => {
+    if (!publicKey || !signTransaction) return;
+    const provider = new AnchorProvider(
+      connection,
+      { publicKey, signTransaction, signAllTransactions: async (t) => t },
+      { commitment: "confirmed" }
+    );
+    const data = await fetchAuction(getProgram(provider), auctionPda);
+    if (data) setAuction(data);
+  }, [publicKey, signTransaction, connection, auctionPda]);
+
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, 4000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  // Subscribe to real-time events via Magic Router (routes to PER automatically)
+  useEffect(() => {
+    const routerConn = getMagicRouterConnection();
+    const unsubscribe = subscribeToAuctionEvents(routerConn, auctionPda, (ev) => {
+      setEvents((prev) => [...prev.slice(-49), ev]);
+
+      // Capture commit tx signature when auction closes
+      if (ev.type === "auction_closed" && ev.data.slot) {
+        setCommitTxSig(`slot-${ev.data.slot}`);
+      }
+    });
+    return unsubscribe;
+  }, [auctionPdaStr]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (!auction) return;
+    const update = () => {
+      const end = auction.endTime.toNumber() * 1000;
+      const now = Date.now();
+      if (now >= end) {
+        setTimeLeft("Ended");
+      } else {
+        setTimeLeft(formatDistance(now, end, { addSuffix: false }));
+      }
+    };
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [auction]);
+
+  // Close auction (trigger TEE computation)
+  async function handleClose() {
+    if (!publicKey || !signTransaction || !signMessage || !auction) return;
+    setClosing(true);
+    try {
+      // Authenticate with TEE first
+      const { teeConnection, attestation: att } = await createTeeSession(
+        publicKey,
+        signMessage
+      );
+      setAttestation(att);
+
+      const teeProvider = new AnchorProvider(
+        teeConnection,
+        { publicKey, signTransaction, signAllTransactions: async (t) => t },
+        { commitment: "confirmed" }
+      );
+      const teeProgram = getProgram(teeProvider);
+
+      const sig = await closeAuction(
+        teeProgram,
+        publicKey,
+        auctionPda,
+        auction.bidders
+      );
+      setCommitTxSig(sig);
+      await refresh();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setClosing(false);
+    }
+  }
+
+  if (!auction) {
+    return (
+      <div className="flex items-center justify-center h-48 text-gray-500">
+        Loading auction from PER...
+      </div>
+    );
+  }
+
+  const isDelegated = "delegated" in auction.status;
+  const isClosed = "closed" in auction.status || "settled" in auction.status;
+  const isExpired = Date.now() >= auction.endTime.toNumber() * 1000;
+  const isSellerViewing =
+    publicKey?.toBase58() === auction.seller.toBase58();
+
+  return (
+    <div className="space-y-5">
+      {/* Auction Header */}
+      <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-white truncate">
+              {auction.title}
+            </h1>
+            <div className="text-xs text-gray-500 mt-1 font-mono break-all">
+              {auctionPdaStr}
+            </div>
+          </div>
+          <div className="shrink-0">
+            {isDelegated && !isExpired && (
+              <span className="flex items-center gap-1.5 bg-teal-900/50 border border-teal-700 text-teal-400 text-xs px-3 py-1 rounded-full font-medium">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-teal-500" />
+                </span>
+                Live in TEE
+              </span>
+            )}
+            {isExpired && !isClosed && (
+              <span className="bg-orange-900/50 border border-orange-700 text-orange-400 text-xs px-3 py-1 rounded-full">
+                Expired — awaiting close
+              </span>
+            )}
+            {isClosed && (
+              <span className="bg-green-900/50 border border-green-700 text-green-400 text-xs px-3 py-1 rounded-full">
+                Closed
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4 mt-4">
+          <div className="bg-gray-800 rounded-lg p-3">
+            <div className="text-xs text-gray-500">Reserve Price</div>
+            <div className="text-white font-bold mt-0.5">
+              {(auction.reservePrice.toNumber() / 1e9).toFixed(3)} SOL
+            </div>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-3">
+            <div className="text-xs text-gray-500">Sealed Bids</div>
+            <div className="text-yellow-400 font-bold mt-0.5">
+              {auction.bidCount}{" "}
+              <span className="text-gray-500 font-normal text-xs">received</span>
+            </div>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-3">
+            <div className="text-xs text-gray-500">Time Left</div>
+            <div
+              className={`font-bold mt-0.5 ${isExpired ? "text-red-400" : "text-white"}`}
+            >
+              {timeLeft || "—"}
+            </div>
+          </div>
+        </div>
+
+        {/* TEE badge */}
+        <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
+          <span>🔐</span>
+          <span>
+            All bid amounts are sealed inside Intel TDX. Delegated to PER
+            validator{" "}
+            <span className="font-mono text-gray-500">
+              FnE6...XQnp1
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Left: Bid or Result */}
+        <div>
+          {isDelegated && !isExpired && (
+            <BidForm
+              auctionPda={auctionPda}
+              auction={auction}
+              onBidPlaced={refresh}
+            />
+          )}
+
+          {isClosed && (
+            <ResultPanel
+              auctionPda={auctionPda}
+              auction={auction}
+              attestation={attestation}
+              commitTxSig={commitTxSig}
+            />
+          )}
+
+          {/* Close auction button (seller or anyone after expiry) */}
+          {isExpired && !isClosed && (
+            <div className="bg-gray-900 rounded-xl border border-orange-700 p-5">
+              <h3 className="font-semibold text-white mb-2">
+                Compute Winner in TEE
+              </h3>
+              <p className="text-xs text-gray-500 mb-4">
+                The auction has expired. Trigger winner computation — the TEE
+                will read all sealed bids, find the highest, and commit the
+                result to L1 with an Intel TDX attestation.
+              </p>
+              <button
+                onClick={handleClose}
+                disabled={closing}
+                className="w-full py-2.5 rounded-lg font-semibold text-sm bg-orange-600 hover:bg-orange-500 text-white disabled:opacity-50 transition-all"
+              >
+                {closing
+                  ? "TEE computing winner..."
+                  : "Close & Reveal Winner (TEE) 🔐"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Live Feed */}
+        <LiveFeed events={events} />
+      </div>
+    </div>
+  );
+};

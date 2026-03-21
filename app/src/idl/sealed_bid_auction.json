@@ -1,0 +1,165 @@
+{
+  "version": "0.1.0",
+  "name": "sealed_bid_auction",
+  "instructions": [
+    {
+      "name": "createAuction",
+      "accounts": [
+        { "name": "seller", "isMut": true, "isSigner": true },
+        { "name": "auction", "isMut": true, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "auctionId", "type": "u64" },
+        { "name": "reservePrice", "type": "u64" },
+        { "name": "durationSeconds", "type": "i64" },
+        { "name": "title", "type": "string" }
+      ]
+    },
+    {
+      "name": "createBidPermission",
+      "accounts": [
+        { "name": "bidder", "isMut": true, "isSigner": true },
+        { "name": "auction", "isMut": false, "isSigner": false },
+        { "name": "permissionGroup", "isMut": true, "isSigner": false },
+        { "name": "permissionProgram", "isMut": false, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "delegateAuction",
+      "accounts": [
+        { "name": "payer", "isMut": true, "isSigner": true },
+        { "name": "auction", "isMut": true, "isSigner": false },
+        { "name": "auctionState", "isMut": false, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "placeBid",
+      "accounts": [
+        { "name": "bidder", "isMut": true, "isSigner": true },
+        { "name": "auction", "isMut": true, "isSigner": false },
+        { "name": "bid", "isMut": true, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "amount", "type": "u64" }
+      ]
+    },
+    {
+      "name": "closeAuction",
+      "accounts": [
+        { "name": "payer", "isMut": true, "isSigner": true },
+        { "name": "auction", "isMut": true, "isSigner": false },
+        { "name": "magicContext", "isMut": true, "isSigner": false },
+        { "name": "magicProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "settleAuction",
+      "accounts": [
+        { "name": "winner", "isMut": true, "isSigner": true },
+        { "name": "seller", "isMut": true, "isSigner": false },
+        { "name": "auction", "isMut": true, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Auction",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "seller", "type": "publicKey" },
+          { "name": "title", "type": "string" },
+          { "name": "reservePrice", "type": "u64" },
+          { "name": "startTime", "type": "i64" },
+          { "name": "endTime", "type": "i64" },
+          { "name": "bidCount", "type": "u32" },
+          { "name": "status", "type": { "defined": "AuctionStatus" } },
+          { "name": "winner", "type": "publicKey" },
+          { "name": "winningBid", "type": "u64" },
+          { "name": "auctionId", "type": "u64" },
+          { "name": "bump", "type": "u8" },
+          { "name": "bidders", "type": { "vec": "publicKey" } }
+        ]
+      }
+    },
+    {
+      "name": "Bid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "auction", "type": "publicKey" },
+          { "name": "bidder", "type": "publicKey" },
+          { "name": "amount", "type": "u64" },
+          { "name": "timestamp", "type": "i64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "AuctionStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Created" },
+          { "name": "Delegated" },
+          { "name": "Closed" },
+          { "name": "Settled" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "AuctionCreated",
+      "fields": [
+        { "name": "auction", "type": "publicKey", "index": false },
+        { "name": "seller", "type": "publicKey", "index": false },
+        { "name": "auctionId", "type": "u64", "index": false },
+        { "name": "reservePrice", "type": "u64", "index": false },
+        { "name": "endTime", "type": "i64", "index": false },
+        { "name": "title", "type": "string", "index": false }
+      ]
+    },
+    {
+      "name": "BidPlaced",
+      "fields": [
+        { "name": "auction", "type": "publicKey", "index": false },
+        { "name": "bidder", "type": "publicKey", "index": false },
+        { "name": "bidCount", "type": "u32", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "AuctionClosed",
+      "fields": [
+        { "name": "auction", "type": "publicKey", "index": false },
+        { "name": "winner", "type": { "option": "publicKey" }, "index": false },
+        { "name": "winningBid", "type": "u64", "index": false },
+        { "name": "bidCount", "type": "u32", "index": false },
+        { "name": "success", "type": "bool", "index": false }
+      ]
+    },
+    {
+      "name": "AuctionSettled",
+      "fields": [
+        { "name": "auction", "type": "publicKey", "index": false },
+        { "name": "winner", "type": "publicKey", "index": false },
+        { "name": "seller", "type": "publicKey", "index": false },
+        { "name": "winningBid", "type": "u64", "index": false }
+      ]
+    }
+  ],
+  "metadata": {
+    "address": "SBAuc1111111111111111111111111111111111111111"
+  }
+}
