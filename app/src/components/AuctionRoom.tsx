@@ -38,16 +38,24 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
 
   const auctionPda = new PublicKey(auctionPdaStr);
 
-  // Fetch auction state via Magic Router (auto-routes to ER for delegated accounts)
+  // Fetch auction state — try Magic Router first (routes to ER for delegated accounts),
+  // fall back to devnet L1 if router fails
   const refresh = useCallback(async () => {
     if (!publicKey || !signTransaction) return;
-    const routerConnection = getMagicRouterConnection();
-    const provider = new AnchorProvider(
-      routerConnection,
-      { publicKey, signTransaction, signAllTransactions: async (t) => t },
+    const makeProvider = (conn: any) => new AnchorProvider(
+      conn,
+      { publicKey, signTransaction, signAllTransactions: async (t: any) => t },
       { commitment: "confirmed" }
     );
-    const data = await fetchAuction(getProgram(provider), auctionPda);
+
+    // Try Magic Router (auto-routes to ER for delegated accounts)
+    let data = await fetchAuction(getProgram(makeProvider(getMagicRouterConnection())), auctionPda);
+
+    // Fall back to devnet L1
+    if (!data) {
+      data = await fetchAuction(getProgram(makeProvider(getDevnetConnection())), auctionPda);
+    }
+
     if (data) setAuction(data);
   }, [publicKey, signTransaction, auctionPda]);
 
