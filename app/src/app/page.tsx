@@ -34,9 +34,37 @@ function FaqItem({ question, children }: { question: string; children: React.Rea
 
 export default function Home() {
   const { connected, publicKey, signTransaction } = useWallet();
-  const [auctionPda, setAuctionPda] = useState<string | null>(null);
+  const [auctionPda, setAuctionPdaRaw] = useState<string | null>(null);
   const [joinInput, setJoinInput] = useState("");
   const [activeView, setActiveView] = useState<"create" | "join" | "browse">("create");
+
+  // Sync auctionPda with URL query param
+  function setAuctionPda(pda: string | null) {
+    setAuctionPdaRaw(pda);
+    if (pda) {
+      window.history.pushState({}, "", `?auction=${pda}`);
+    } else {
+      window.history.pushState({}, "", window.location.pathname);
+    }
+  }
+
+  // Read auction PDA from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const auc = params.get("auction");
+    if (auc) setAuctionPdaRaw(auc);
+  }, []);
+
+  // Handle browser back/forward
+  useEffect(() => {
+    function onPopState() {
+      const params = new URLSearchParams(window.location.search);
+      const auc = params.get("auction");
+      setAuctionPdaRaw(auc);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   const [auctions, setAuctions] = useState<{ publicKey: PublicKey; account: AuctionState }[]>([]);
   const [loadingAuctions, setLoadingAuctions] = useState(false);
   const [myAuctions, setMyAuctions] = useState<{ pda: string; title: string; createdAt: number }[]>([]);
