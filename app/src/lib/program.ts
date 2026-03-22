@@ -5,7 +5,7 @@
 
 import * as anchor from "@coral-xyz/anchor";
 import { Program, BN, AnchorProvider } from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { ConnectionMagicRouter } from "@magicblock-labs/ephemeral-rollups-sdk";
 import {
   PROGRAM_ID,
@@ -133,28 +133,69 @@ export async function delegateAuction(
   auctionPda: PublicKey,
   auctionId: BN
 ): Promise<string> {
+  // Build our program's delegate_auction instruction manually.
+  // This calls OUR program (not the delegation program directly),
+  // and our program does the CPI with invoke_signed for the PDA.
+  const crypto = await import("crypto");
+  const discriminator = crypto
+    .createHash("sha256")
+    .update("global:delegate_auction")
+    .digest()
+    .slice(0, 8);
+
+  // Serialize args: auction_id as u64 LE
+  const argsBuffer = Buffer.alloc(8);
+  argsBuffer.writeBigUInt64LE(BigInt(auctionId.toString()));
+
+  const data = Buffer.concat([discriminator, argsBuffer]);
+
   const { buffer, delegationRecord, delegationMetadata } =
     getDelegationPdas(auctionPda);
 
-  const tx = await program.methods
-    .delegateAuction(auctionId)
-    .accounts({
-      payer: seller,
-      auction: auctionPda,
-      buffer,
-      delegationRecord,
-      delegationMetadata,
-      ownerProgram: PROGRAM_ID,
-      delegationProgram: DELEGATION_PROGRAM_ID,
-      systemProgram: SystemProgram.programId,
-    })
-    .remainingAccounts([
-      { pubkey: TEE_VALIDATOR_DEVNET, isSigner: false, isWritable: false },
-    ])
-    .rpc({ commitment: "confirmed" });
+  // Try the exact account order from createDelegateInstruction mapping:
+  // The #[delegate] macro generates a CPI. The macro iterates fields:
+  //   payer (non-del) → pushed as-is
+  //   auction (del) → buffer, del_record, del_metadata pushed before, then auction
+  // Then appends: owner_program, delegation_program, system_program
+  const keys = [
+    { pubkey: seller, isSigner: true, isWritable: true },
+    { pubkey: buffer, isSigner: false, isWritable: true },
+    { pubkey: delegationRecord, isSigner: false, isWritable: true },
+    { pubkey: delegationMetadata, isSigner: false, isWritable: true },
+    { pubkey: auctionPda, isSigner: false, isWritable: true },
+    { pubkey: PROGRAM_ID, isSigner: false, isWritable: false },
+    { pubkey: DELEGATION_PROGRAM_ID, isSigner: false, isWritable: false },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    // remaining_accounts[0] = TEE validator
+    { pubkey: TEE_VALIDATOR_DEVNET, isSigner: false, isWritable: false },
+  ];
 
-  console.log("[L1] delegate_auction tx:", tx);
-  return tx;
+  const ix = new TransactionInstruction({
+    programId: PROGRAM_ID,
+    keys,
+    data,
+  });
+
+  console.log("[L1] delegate_auction manual accounts:");
+  keys.forEach((k, i) => console.log(`  ${i}: ${k.pubkey.toBase58()}`));
+  console.log("[L1] buffer derived from PROGRAM_ID:", buffer.toBase58());
+  console.log("[L1] auctionPda:", auctionPda.toBase58());
+
+  const conn = program.provider.connection;
+  const tx = new Transaction().add(ix);
+  tx.feePayer = seller;
+  const bh = await conn.getLatestBlockhash();
+  tx.recentBlockhash = bh.blockhash;
+
+  const wallet = (program.provider as AnchorProvider).wallet;
+  const signed = await wallet.signTransaction(tx);
+  const sig = await conn.sendRawTransaction(signed.serialize(), {
+    skipPreflight: false,
+  });
+  await conn.confirmTransaction({ signature: sig, ...bh }, "confirmed");
+
+  console.log("[L1] delegate_auction tx:", sig);
+  return sig;
 }
 
 /** Step 3b (L1): Create empty Bid PDA */
