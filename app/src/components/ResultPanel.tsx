@@ -1,6 +1,6 @@
 "use client";
 
-import { FC } from "react";
+import { FC, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
@@ -31,35 +31,49 @@ export const ResultPanel: FC<Props> = ({
   const isSettled = "settled" in auction.status;
   const isCancelled = "cancelled" in auction.status;
 
+  const [settleError, setSettleError] = useState<string | null>(null);
+  const [settling, setSettling] = useState(false);
+
   async function handleSettle() {
     if (!publicKey || !signTransaction || !isWinner) return;
+    setSettleError(null);
+    setSettling(true);
 
-    const devnetConnection = getDevnetConnection();
-    const provider = new AnchorProvider(
-      devnetConnection,
-      {
+    try {
+      const devnetConnection = getDevnetConnection();
+      const provider = new AnchorProvider(
+        devnetConnection,
+        {
+          publicKey,
+          signTransaction,
+          signAllTransactions: async (txs) => txs,
+        },
+        { commitment: "confirmed" }
+      );
+      const program = getProgram(provider);
+
+      const escrowNftAccount = getEscrowPda(auction.seller, new BN(auction.auctionId));
+      const winnerNftAccount = getAssociatedTokenAddr(
+        auction.nftMint,
+        publicKey
+      );
+
+      await settleAuction(
+        program,
         publicKey,
-        signTransaction,
-        signAllTransactions: async (txs) => txs,
-      },
-      { commitment: "confirmed" }
-    );
-    const program = getProgram(provider);
-
-    const escrowNftAccount = getEscrowPda(auction.seller, new BN(auction.auctionId));
-    const winnerNftAccount = await getAssociatedTokenAddr(
-      auction.nftMint,
-      publicKey
-    );
-
-    await settleAuction(
-      program,
-      publicKey,
-      auction.seller,
-      auctionPda,
-      escrowNftAccount,
-      winnerNftAccount
-    );
+        auction.seller,
+        auctionPda,
+        escrowNftAccount,
+        winnerNftAccount,
+        auction.nftMint
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[Settle] Error:", err);
+      setSettleError(msg);
+    } finally {
+      setSettling(false);
+    }
   }
 
   async function handleCancel() {
@@ -201,12 +215,20 @@ export const ResultPanel: FC<Props> = ({
 
         {/* Settle button for winner */}
         {hasWinner && !isSettled && !isCancelled && isWinner && (
-          <button
-            onClick={handleSettle}
-            className="btn-primary w-full"
-          >
-            Settle & Pay {(auction.winningBid.toNumber() / 1e9).toFixed(4)} SOL
-          </button>
+          <>
+            <button
+              onClick={handleSettle}
+              disabled={settling}
+              className="btn-primary w-full disabled:opacity-50"
+            >
+              {settling ? "Settling..." : `Settle & Pay ${(auction.winningBid.toNumber() / 1e9).toFixed(4)} SOL`}
+            </button>
+            {settleError && (
+              <div className="text-xs rounded-lg p-3 mt-2" style={{ color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
+                {settleError}
+              </div>
+            )}
+          </>
         )}
 
         {/* Cancel button — visible when no winner or settle deadline expired */}

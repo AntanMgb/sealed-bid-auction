@@ -418,8 +418,21 @@ export async function settleAuction(
   seller: PublicKey,
   auctionPda: PublicKey,
   escrowNftAccount: PublicKey,
-  winnerNftAccount: PublicKey
+  winnerNftAccount: PublicKey,
+  nftMint: PublicKey
 ): Promise<string> {
+  const conn = program.provider.connection;
+
+  // Create winner's ATA if it doesn't exist
+  const ataInfo = await conn.getAccountInfo(winnerNftAccount);
+  const preIxs: TransactionInstruction[] = [];
+  if (!ataInfo) {
+    preIxs.push(
+      createAssociatedTokenAccountIx(winner, winner, nftMint)
+    );
+    console.log("[L1] Creating ATA for winner:", winnerNftAccount.toBase58());
+  }
+
   const tx = await program.methods
     .settleAuction()
     .accounts({
@@ -431,10 +444,32 @@ export async function settleAuction(
       tokenProgram: TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
     })
+    .preInstructions(preIxs)
     .rpc({ commitment: "confirmed" });
 
   console.log("[L1] settle_auction tx:", tx);
   return tx;
+}
+
+/** Build a createAssociatedTokenAccount instruction without importing spl-token */
+function createAssociatedTokenAccountIx(
+  payer: PublicKey,
+  owner: PublicKey,
+  mint: PublicKey
+): TransactionInstruction {
+  const ata = getAssociatedTokenAddr(mint, owner);
+  return new TransactionInstruction({
+    programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: payer, isSigner: true, isWritable: true },
+      { pubkey: ata, isSigner: false, isWritable: true },
+      { pubkey: owner, isSigner: false, isWritable: false },
+      { pubkey: mint, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.alloc(0),
+  });
 }
 
 /** Cancel auction — permissionless crank, returns tokens to seller */
