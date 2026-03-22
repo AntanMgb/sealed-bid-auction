@@ -191,7 +191,7 @@ export default function Home() {
             <div className="flex justify-center mb-5">
               <img src="/logo.png" alt="Magic Auction" className="w-20 h-20 rounded-2xl glow" />
             </div>
-            <h1 className="gradient-text text-4xl md:text-5xl font-black mb-4" style={{ fontFamily: "'Unbounded', sans-serif" }}>
+            <h1 className="gradient-text text-4xl md:text-5xl font-black mb-4 pb-2" style={{ fontFamily: "'Unbounded', sans-serif" }}>
               Magic Auction
             </h1>
             <p className="max-w-2xl mx-auto text-lg leading-relaxed" style={{ color: "var(--text-mid)" }}>
