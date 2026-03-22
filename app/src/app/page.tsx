@@ -143,9 +143,11 @@ export default function Home() {
 
   // Don't auto-load on connect — user clicks "Refresh" to load
 
-  function getStatusLabel(status: AuctionState["status"]) {
+  function getStatusLabel(status: AuctionState["status"], endTime?: number) {
     if ("settled" in status) return { label: "Settled", cls: "text-[var(--accent-magenta)] border-[var(--accent-magenta)]/30 bg-[var(--accent-magenta)]/10" };
+    if ("cancelled" in status) return { label: "Cancelled", cls: "text-gray-400 border-gray-400/30 bg-gray-400/10" };
     if ("closed" in status) return { label: "Closed", cls: "text-green-400 border-green-400/30 bg-green-400/10" };
+    if (endTime && Date.now() >= endTime * 1000) return { label: "Expired", cls: "text-[var(--accent-amber)] border-[var(--accent-amber)]/30 bg-[var(--accent-amber)]/10" };
     if ("delegated" in status) return { label: "Live", cls: "text-[var(--accent-violet)] border-[var(--accent-violet)]/30 bg-[var(--accent-violet)]/10" };
     return { label: "Created", cls: "text-[var(--accent-blue)] border-[var(--accent-blue)]/30 bg-[var(--accent-blue)]/10" };
   }
@@ -310,7 +312,7 @@ export default function Home() {
                   ) : (
                     <div className="space-y-2">
                       {auctions.map((a) => {
-                        const s = getStatusLabel(a.account.status);
+                        const s = getStatusLabel(a.account.status, a.account.endTime.toNumber());
                         const endMs = a.account.endTime.toNumber() * 1000;
                         const isExpired = Date.now() >= endMs;
                         const isActive = !isExpired && ("delegated" in a.account.status || "created" in a.account.status);
