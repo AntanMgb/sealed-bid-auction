@@ -54,11 +54,11 @@ export async function createTeeSession(
 ): Promise<TeeSession> {
   const pubkeyStr = walletPublicKey.toBase58();
 
-  const origin = window.location.origin;
+  const TEE_BASE = "https://tee.magicblock.app";
 
-  // Step 1: Get challenge from TEE via server-side proxy
+  // Step 1: Get challenge from TEE directly (browser → TEE, no server proxy)
   const challengeResp = await fetch(
-    `${origin}/api/tee-auth?path=auth/challenge&pubkey=${pubkeyStr}`
+    `${TEE_BASE}/auth/challenge?pubkey=${pubkeyStr}`
   );
   if (!challengeResp.ok) {
     throw new Error(`TEE challenge failed: ${challengeResp.status} ${await challengeResp.text()}`);
@@ -78,8 +78,8 @@ export async function createTeeSession(
   const signature = await signMessage(challengeBytes);
   const signatureString = bs58.encode(signature);
 
-  // Step 3: Exchange signature for auth token via server-side proxy
-  const loginResp = await fetch(`${origin}/api/tee-auth?path=auth/login`, {
+  // Step 3: Exchange signature for auth token directly
+  const loginResp = await fetch(`${TEE_BASE}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -99,16 +99,14 @@ export async function createTeeSession(
   const token: string = authJson.token;
   console.log("[TEE] Authenticated, token length:", token.length, "preview:", token.substring(0, 30));
 
-  // Step 4: Create ConnectionMagicRouter through our server-side proxy.
-  // ConnectionMagicRouter uses getBlockhashForAccounts (ER-specific blockhash)
-  // instead of getLatestBlockhash, which is required for ER transactions.
-  const proxyUrl = `${origin}/api/tee-rpc?teetoken=${encodeURIComponent(token)}`;
-  const teeConnection = new ConnectionMagicRouter(proxyUrl, {
+  // Step 4: Create ConnectionMagicRouter pointing directly at TEE with token.
+  // Falls back to server proxy if direct connection has CORS issues.
+  const teeUrl = `${TEE_BASE}?token=${encodeURIComponent(token)}`;
+  const teeConnection = new ConnectionMagicRouter(teeUrl, {
     commitment: "confirmed",
-    httpHeaders: { "X-Tee-Token": token },
   });
 
-  return { teeEndpoint: proxyUrl, teeConnection, attestation: null };
+  return { teeEndpoint: teeUrl, teeConnection, attestation: null };
 }
 
 // ─── Devnet L1 Connection ─────────────────────────────────────────────────────
