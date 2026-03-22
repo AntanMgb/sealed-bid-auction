@@ -86,12 +86,14 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
 
       // Fetch mint decimals to convert user input to raw amount
       const mintInfo = await devnetConnection.getAccountInfo(nftMint);
-      let decimals = 0;
-      if (mintInfo?.data) {
-        // SPL Token mint layout: decimals is at byte offset 44 (1 byte)
-        decimals = mintInfo.data[44];
+      let decimals = 9; // default to 9 (standard SPL token)
+      if (mintInfo?.data && mintInfo.data.length >= 45) {
+        const buf = Buffer.from(mintInfo.data);
+        decimals = buf.readUInt8(44);
       }
-      const rawAmount = new BN(Math.floor(escrowAmt * Math.pow(10, decimals)));
+      // Use string multiplication to avoid floating point issues
+      const multiplier = new BN(10).pow(new BN(decimals));
+      const rawAmount = new BN(escrowAmt).mul(multiplier);
       console.log(`[L1] Escrow: ${escrowAmt} tokens × 10^${decimals} = ${rawAmount.toString()} raw`);
 
       // Step 1: Create on L1
