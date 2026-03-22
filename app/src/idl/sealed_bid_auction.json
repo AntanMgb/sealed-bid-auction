@@ -410,6 +410,69 @@
           { "name": "bump", "type": "u8" }
         ]
       }
+    },
+    {
+      "name": "AuctionCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "auction", "type": "pubkey" },
+          { "name": "seller", "type": "pubkey" },
+          { "name": "auction_id", "type": "u64" },
+          { "name": "reserve_price", "type": "u64" },
+          { "name": "end_time", "type": "i64" },
+          { "name": "title", "type": "string" }
+        ]
+      }
+    },
+    {
+      "name": "BidPlaced",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "auction", "type": "pubkey" },
+          { "name": "bidder", "type": "pubkey" },
+          { "name": "bid_count", "type": "u32" },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    },
+    {
+      "name": "AuctionClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "auction", "type": "pubkey" },
+          { "name": "winner", "type": { "option": "pubkey" } },
+          { "name": "winning_bid", "type": "u64" },
+          { "name": "bid_count", "type": "u32" },
+          { "name": "success", "type": "bool" }
+        ]
+      }
+    },
+    {
+      "name": "AuctionSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "auction", "type": "pubkey" },
+          { "name": "winner", "type": "pubkey" },
+          { "name": "seller", "type": "pubkey" },
+          { "name": "winning_bid", "type": "u64" }
+        ]
+      }
+    },
+    {
+      "name": "BidPermissionCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "auction", "type": "pubkey" },
+          { "name": "bidder", "type": "pubkey" },
+          { "name": "bid_pda", "type": "pubkey" },
+          { "name": "permission_group", "type": "pubkey" }
+        ]
+      }
     }
   ]
 }
