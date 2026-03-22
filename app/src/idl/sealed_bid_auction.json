@@ -70,15 +70,6 @@
       "discriminator": [85, 114, 125, 69, 80, 147, 146, 83],
       "accounts": [
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "auction",
-          "writable": true
-        },
-        {
           "name": "buffer",
           "writable": true,
           "pda": {
@@ -110,6 +101,15 @@
             ],
             "program": { "kind": "account", "path": "delegation_program" }
           }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "auction",
+          "writable": true
         },
         {
           "name": "owner_program",
@@ -163,18 +163,6 @@
       "discriminator": [205, 246, 97, 168, 93, 183, 203, 117],
       "accounts": [
         {
-          "name": "bidder",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "auction"
-        },
-        {
-          "name": "bid",
-          "writable": true
-        },
-        {
           "name": "buffer",
           "writable": true,
           "pda": {
@@ -206,6 +194,18 @@
             ],
             "program": { "kind": "account", "path": "delegation_program" }
           }
+        },
+        {
+          "name": "bidder",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "auction"
+        },
+        {
+          "name": "bid",
+          "writable": true
         },
         {
           "name": "owner_program",
