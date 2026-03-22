@@ -160,11 +160,11 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
         bidders
       );
       setCommitTxSig(sig);
-      // Wait for TEE commit to propagate to L1, then refresh
-      await new Promise((r) => setTimeout(r, 3000));
-      await refresh();
-      // Retry refresh if state didn't update yet
+      // Optimistically update auction status to Closed so UI hides the button
+      setAuction((prev) => prev ? { ...prev, status: { closed: {} } } : prev);
+      // Also try to refresh from chain after a delay
       setTimeout(() => refresh(), 5000);
+      setTimeout(() => refresh(), 15000);
     } catch (err) {
       console.error(err);
       setCloseError(err instanceof Error ? err.message : "Close failed");
