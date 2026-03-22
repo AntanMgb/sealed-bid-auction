@@ -212,17 +212,20 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
             <h1 className="text-2xl font-bold text-white truncate mt-2" style={{ fontFamily: "'Unbounded', sans-serif" }}>
               {auction.title}
             </h1>
-            <button
-              onClick={() => { navigator.clipboard.writeText(auctionPdaStr); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-              className="flex items-center gap-2 text-xs mt-1 mono break-all transition-colors hover:text-white group"
-              style={{ color: "var(--text-dim)" }}
-              title="Click to copy"
-            >
-              <span>{auctionPdaStr}</span>
-              <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs mono break-all" style={{ color: "var(--text-dim)" }}>{auctionPdaStr}</span>
+              <button
+                onClick={() => { navigator.clipboard.writeText(auctionPdaStr); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                className="shrink-0 px-2 py-1 rounded-md text-[10px] font-medium transition-all"
+                style={{
+                  background: copied ? "rgba(74,222,128,0.15)" : "var(--surface-hover)",
+                  color: copied ? "#4ade80" : "var(--text-dim)",
+                  border: copied ? "1px solid rgba(74,222,128,0.3)" : "1px solid var(--border)",
+                }}
+              >
                 {copied ? "Copied!" : "Copy"}
-              </span>
-            </button>
+              </button>
+            </div>
           </div>
           <div className="shrink-0">
             {isDelegated && !isExpired && (
