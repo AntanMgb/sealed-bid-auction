@@ -67,15 +67,44 @@ export default function Home() {
   }, []);
   const [auctions, setAuctions] = useState<{ publicKey: PublicKey; account: AuctionState }[]>([]);
   const [loadingAuctions, setLoadingAuctions] = useState(false);
-  const [myAuctions, setMyAuctions] = useState<{ pda: string; title: string; createdAt: number }[]>([]);
+  const [myAuctions, setMyAuctions] = useState<{ pda: string; title: string; createdAt: number; status?: string }[]>([]);
 
-  // Load my auctions from localStorage on mount
+  // Load my auctions from localStorage and fetch their statuses
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("my-auctions") || "[]");
+      const saved: { pda: string; title: string; createdAt: number }[] =
+        JSON.parse(localStorage.getItem("my-auctions") || "[]");
       setMyAuctions(saved);
+
+      // Fetch statuses in background
+      if (publicKey && signTransaction && saved.length > 0) {
+        (async () => {
+          const makeProvider = (conn: any) => new AnchorProvider(
+            conn,
+            { publicKey, signTransaction, signAllTransactions: async (t: any) => t },
+            { commitment: "confirmed" }
+          );
+          const routerProg = getProgram(makeProvider(getMagicRouterConnection()));
+          const updated = await Promise.all(
+            saved.map(async (a) => {
+              try {
+                const data = await fetchAuction(routerProg, new PublicKey(a.pda));
+                if (!data) return { ...a, status: "unknown" };
+                if ("settled" in data.status) return { ...a, status: "settled" };
+                if ("closed" in data.status) return { ...a, status: "closed" };
+                const expired = Date.now() >= data.endTime.toNumber() * 1000;
+                if (expired) return { ...a, status: "expired" };
+                return { ...a, status: "live" };
+              } catch {
+                return { ...a, status: "unknown" };
+              }
+            })
+          );
+          setMyAuctions(updated);
+        })();
+      }
     } catch {}
-  }, []);
+  }, [publicKey, signTransaction]);
 
   // Save auction to "My Auctions" in localStorage
   function registerAuction(pdaStr: string, title?: string) {
@@ -338,33 +367,46 @@ export default function Home() {
                 )}
               </div>
             )}
-            {/* My Auctions */}
-            {myAuctions.length > 0 && (
-              <div className="bg-gray-900 rounded-xl border border-gray-700 p-5 mt-5">
-                <h2 className="text-lg font-semibold text-white mb-3">My Auctions</h2>
-                <div className="space-y-2">
-                  {myAuctions.map((a) => (
-                    <button
-                      key={a.pda}
-                      onClick={() => setAuctionPda(a.pda)}
-                      className="w-full text-left bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-gray-600 rounded-lg p-3 transition-all"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="font-semibold text-white text-sm truncate">{a.title}</div>
-                          <div className="text-[10px] text-gray-500 font-mono mt-0.5">
-                            {a.pda.slice(0, 20)}...
+            {/* My Auctions — show latest live + latest closed */}
+            {myAuctions.length > 0 && (() => {
+              const liveOne = myAuctions.find((a) => a.status === "live");
+              const closedOne = myAuctions.find((a) => a.status === "closed" || a.status === "settled");
+              const shown = [liveOne, closedOne].filter(Boolean) as typeof myAuctions;
+              if (shown.length === 0) {
+                // Fallback: show the 2 most recent if statuses not loaded yet
+                shown.push(...myAuctions.slice(0, 2));
+              }
+              const statusBadge = (s?: string) => {
+                if (s === "live") return <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-900/50 border border-teal-700 text-teal-400">Live</span>;
+                if (s === "closed" || s === "settled") return <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-900/50 border border-green-700 text-green-400">Closed</span>;
+                if (s === "expired") return <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-900/50 border border-orange-700 text-orange-400">Expired</span>;
+                return null;
+              };
+              return (
+                <div className="bg-gray-900 rounded-xl border border-gray-700 p-5 mt-5">
+                  <h2 className="text-lg font-semibold text-white mb-3">My Auctions</h2>
+                  <div className="space-y-2">
+                    {shown.map((a) => (
+                      <button
+                        key={a.pda}
+                        onClick={() => setAuctionPda(a.pda)}
+                        className="w-full text-left bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-gray-600 rounded-lg p-3 transition-all"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-white text-sm truncate">{a.title}</div>
+                            <div className="text-[10px] text-gray-500 font-mono mt-0.5">
+                              {a.pda.slice(0, 20)}...
+                            </div>
                           </div>
+                          {statusBadge(a.status)}
                         </div>
-                        <span className="text-[10px] text-gray-500 shrink-0">
-                          {new Date(a.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
