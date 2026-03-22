@@ -366,8 +366,8 @@ export async function closeAuction(
     .accounts({
       payer,
       auction: auctionPda,
-      magicContext: MAGIC_CONTEXT,
       magicProgram: MAGIC_PROGRAM,
+      magicContext: MAGIC_CONTEXT,
     })
     .remainingAccounts(bidAccounts)
     .transaction();
