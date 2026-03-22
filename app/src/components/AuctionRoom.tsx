@@ -129,19 +129,25 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       );
       const routerProgram = getProgram(routerProvider);
 
-      let bidders: PublicKey[] = auction.bidders.length > 0
-        ? auction.bidders
-        : knownBidders.map((b) => new PublicKey(b));
-
-      if (bidders.length === 0) {
-        try {
-          const teeAuction = await fetchAuction(routerProgram, auctionPda);
-          if (teeAuction?.bidders?.length) {
-            bidders = teeAuction.bidders;
-          }
-        } catch (err) {
-          console.warn("[TEE] Auction fetch from TEE failed:", err);
+      // Always fetch bidders from TEE first — L1 state is stale while delegated
+      let bidders: PublicKey[] = [];
+      try {
+        const teeAuction = await fetchAuction(routerProgram, auctionPda);
+        if (teeAuction?.bidders?.length) {
+          bidders = teeAuction.bidders;
+          console.log("[TEE] Got bidders from TEE:", bidders.length);
         }
+      } catch (err) {
+        console.warn("[TEE] Auction fetch from TEE failed:", err);
+      }
+
+      // Fallback: merge L1 state + locally known bidders
+      if (bidders.length === 0) {
+        const allBidders = new Set<string>(
+          auction.bidders.map((b) => b.toBase58())
+        );
+        knownBidders.forEach((b) => allBidders.add(b));
+        bidders = [...allBidders].map((b) => new PublicKey(b));
       }
 
       console.log("[Close] Bidders:", bidders.length, bidders.map(b => b.toBase58()));
