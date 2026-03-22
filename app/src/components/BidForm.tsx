@@ -14,7 +14,7 @@ import {
   delegateBid,
   getProgram,
 } from "@/lib/program";
-import { createTeeSession, getDevnetConnection } from "@/lib/magicblock";
+import { getDevnetConnection, getMagicRouterConnection } from "@/lib/magicblock";
 import { AuctionState } from "@/lib/program";
 
 interface Props {
@@ -24,8 +24,7 @@ interface Props {
 }
 
 export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
-  const { publicKey, signMessage, signTransaction, sendTransaction } =
-    useWallet();
+  const { publicKey, signTransaction } = useWallet();
 
   const [amount, setAmount] = useState("");
   const [step, setStep] = useState<
@@ -37,7 +36,7 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
   const reserveSol = auction.reservePrice.toNumber() / 1e9;
 
   async function handleBid() {
-    if (!publicKey || !signMessage || !signTransaction) return;
+    if (!publicKey || !signTransaction) return;
     setError(null);
 
     const amountLamports = Math.floor(parseFloat(amount) * 1e9);
@@ -77,32 +76,37 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
         { commitment: "confirmed" }
       );
       const l1Program = getProgram(l1Provider);
-      await initBid(l1Program, publicKey, auctionPda);
-      console.log("[L1] Bid PDA created");
 
-      await delegateBid(l1Program, publicKey, auctionPda);
-      console.log("[L1] Bid PDA delegated to TEE");
+      // Skip init/delegate if already done (e.g. on retry after TEE auth failure)
+      try {
+        await initBid(l1Program, publicKey, auctionPda);
+        console.log("[L1] Bid PDA created");
+      } catch (e: any) {
+        console.log("[L1] initBid skipped (already exists?):", e?.message?.slice(0, 80));
+      }
+
+      try {
+        await delegateBid(l1Program, publicKey, auctionPda);
+        console.log("[L1] Bid PDA delegated to TEE");
+      } catch (e: any) {
+        console.log("[L1] delegateBid skipped (already delegated?):", e?.message?.slice(0, 80));
+      }
 
       setStep("bidding");
 
-      const { teeConnection, attestation } = await createTeeSession(
-        publicKey,
-        signMessage
-      );
-
-      if (attestation) {
-        console.log("[TEE Attestation]", attestation);
-      }
-
-      const teeProvider = new AnchorProvider(
-        teeConnection,
+      // Use Magic Router to send the bid — it automatically routes to the
+      // correct ER based on delegation status. TEE auth is only needed for
+      // reading private data, not for writing (placing bids).
+      const routerConn = getMagicRouterConnection();
+      const routerProvider = new AnchorProvider(
+        routerConn,
         { publicKey, signTransaction, signAllTransactions: async (txs) => txs },
         { commitment: "confirmed" }
       );
-      const teeProgram = getProgram(teeProvider);
+      const routerProgram = getProgram(routerProvider);
 
       const sig = await placeBid(
-        teeProgram,
+        routerProgram,
         publicKey,
         auctionPda,
         new BN(amountLamports)

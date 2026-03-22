@@ -6,8 +6,8 @@
  *   - Building PER connections (via server-side proxy to bypass CORS)
  *   - Real-time event subscription via the ER WebSocket
  *
- * All TEE requests go through /api/tee-auth and /api/tee-rpc server-side
- * proxy routes to avoid CORS issues with tee.magicblock.app.
+ * All TEE requests go through /api/tee Next.js rewrite proxy
+ * to avoid CORS issues with tee.magicblock.app.
  */
 
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -54,12 +54,22 @@ export async function createTeeSession(
 ): Promise<TeeSession> {
   const pubkeyStr = walletPublicKey.toBase58();
 
-  const TEE_BASE = "https://tee.magicblock.app";
+  // Try direct TEE first, fall back to Next.js rewrite proxy if CORS blocks.
+  const TEE_DIRECT = "https://tee.magicblock.app";
+  const PROXY_BASE = "/api/tee";
 
-  // Step 1: Get challenge from TEE directly (browser → TEE, no server proxy)
-  const challengeResp = await fetch(
-    `${TEE_BASE}/auth/challenge?pubkey=${pubkeyStr}`
-  );
+  // Step 1: Get challenge from TEE
+  let challengeResp: Response;
+  try {
+    challengeResp = await fetch(
+      `${TEE_DIRECT}/auth/challenge?pubkey=${pubkeyStr}`
+    );
+  } catch {
+    console.log("[TEE] Direct fetch failed (CORS?), trying proxy...");
+    challengeResp = await fetch(
+      `${PROXY_BASE}/auth/challenge?pubkey=${pubkeyStr}`
+    );
+  }
   if (!challengeResp.ok) {
     throw new Error(`TEE challenge failed: ${challengeResp.status} ${await challengeResp.text()}`);
   }
@@ -78,16 +88,27 @@ export async function createTeeSession(
   const signature = await signMessage(challengeBytes);
   const signatureString = bs58.encode(signature);
 
-  // Step 3: Exchange signature for auth token directly
-  const loginResp = await fetch(`${TEE_BASE}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      pubkey: pubkeyStr,
-      challenge,
-      signature: signatureString,
-    }),
+  // Step 3: Exchange signature for auth token (try direct, then proxy)
+  const loginBody = JSON.stringify({
+    pubkey: pubkeyStr,
+    challenge,
+    signature: signatureString,
   });
+  let loginResp: Response;
+  try {
+    loginResp = await fetch(`${TEE_DIRECT}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: loginBody,
+    });
+  } catch {
+    console.log("[TEE] Direct login failed (CORS?), trying proxy...");
+    loginResp = await fetch(`${PROXY_BASE}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: loginBody,
+    });
+  }
   if (!loginResp.ok) {
     throw new Error(`TEE login failed: ${loginResp.status} ${await loginResp.text()}`);
   }
@@ -99,12 +120,14 @@ export async function createTeeSession(
   const token: string = authJson.token;
   console.log("[TEE] Authenticated, token length:", token.length, "preview:", token.substring(0, 30));
 
-  // Step 4: Create ConnectionMagicRouter pointing directly at TEE with token.
-  // Falls back to server proxy if direct connection has CORS issues.
-  const teeUrl = `${TEE_BASE}?token=${encodeURIComponent(token)}`;
+  // Step 4: Create ConnectionMagicRouter pointed at TEE with token.
+  // Try direct URL first; the SDK will use this for JSON-RPC calls.
+  const teeUrl = `${TEE_DIRECT}?token=${encodeURIComponent(token)}`;
   const teeConnection = new ConnectionMagicRouter(teeUrl, {
     commitment: "confirmed",
   });
+
+  console.log("[TEE] Connection URL:", teeUrl);
 
   return { teeEndpoint: teeUrl, teeConnection, attestation: null };
 }

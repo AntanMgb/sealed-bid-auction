@@ -15,7 +15,7 @@ import {
   getProgram,
   AuctionState,
 } from "@/lib/program";
-import { subscribeToAuctionEvents, AuctionEvent, TeeAttestation, createTeeSession, getDevnetConnection, getMagicRouterConnection } from "@/lib/magicblock";
+import { subscribeToAuctionEvents, AuctionEvent, TeeAttestation, getDevnetConnection, getMagicRouterConnection } from "@/lib/magicblock";
 import { BidForm } from "./BidForm";
 import { ResultPanel } from "./ResultPanel";
 import { LiveFeed } from "./LiveFeed";
@@ -25,7 +25,7 @@ interface Props {
 }
 
 export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
-  const { publicKey, signTransaction, signMessage } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
 
   const [auction, setAuction] = useState<AuctionState | null>(null);
   const [events, setEvents] = useState<AuctionEvent[]>([]);
@@ -101,7 +101,7 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
   }, [auction]);
 
   async function handleClose() {
-    if (!publicKey || !signTransaction || !signMessage || !auction) return;
+    if (!publicKey || !signTransaction || !auction) return;
     setClosing(true);
     setCloseError(null);
     try {
@@ -119,18 +119,15 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       await devnetConn.confirmTransaction(topUpSig, "confirmed");
       console.log("[L1] Escrow top-up for close tx:", topUpSig);
 
-      const { teeConnection, attestation: att } = await createTeeSession(
-        publicKey,
-        signMessage
-      );
-      setAttestation(att);
-
-      const teeProvider = new AnchorProvider(
-        teeConnection,
+      // Use Magic Router — it automatically routes to the ER for delegated accounts.
+      // TEE auth is only needed for reading private data, not for close_auction.
+      const routerConn = getMagicRouterConnection();
+      const routerProvider = new AnchorProvider(
+        routerConn,
         { publicKey, signTransaction, signAllTransactions: async (t) => t },
         { commitment: "confirmed" }
       );
-      const teeProgram = getProgram(teeProvider);
+      const routerProgram = getProgram(routerProvider);
 
       let bidders: PublicKey[] = auction.bidders.length > 0
         ? auction.bidders
@@ -138,7 +135,7 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
 
       if (bidders.length === 0) {
         try {
-          const teeAuction = await fetchAuction(teeProgram, auctionPda);
+          const teeAuction = await fetchAuction(routerProgram, auctionPda);
           if (teeAuction?.bidders?.length) {
             bidders = teeAuction.bidders;
           }
@@ -150,7 +147,7 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       console.log("[Close] Bidders:", bidders.length, bidders.map(b => b.toBase58()));
 
       const sig = await closeAuction(
-        teeProgram,
+        routerProgram,
         publicKey,
         auctionPda,
         bidders
