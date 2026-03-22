@@ -25,6 +25,85 @@ body {
   font-family: 'Lexend', sans-serif;
   background: var(--bg);
   color: var(--text);
+  overflow-x: hidden;
+}
+
+/* Aurora animated background */
+.aurora-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.aurora-bg::before,
+.aurora-bg::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.35;
+  animation: aurora-drift 12s ease-in-out infinite alternate;
+}
+
+.aurora-bg::before {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, var(--accent-violet), transparent 70%);
+  top: -15%;
+  left: -10%;
+  animation-duration: 14s;
+}
+
+.aurora-bg::after {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, var(--accent-magenta), transparent 70%);
+  bottom: -10%;
+  right: -10%;
+  animation-duration: 10s;
+  animation-direction: alternate-reverse;
+}
+
+.aurora-blob-1,
+.aurora-blob-2 {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+}
+
+.aurora-blob-1 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, var(--accent-blue), transparent 70%);
+  top: 30%;
+  right: 15%;
+  opacity: 0.2;
+  animation: aurora-drift-2 16s ease-in-out infinite alternate;
+}
+
+.aurora-blob-2 {
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, var(--accent-pink), transparent 70%);
+  bottom: 20%;
+  left: 20%;
+  opacity: 0.15;
+  animation: aurora-drift 18s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes aurora-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(60px, 40px) scale(1.15); }
+  100% { transform: translate(-30px, 70px) scale(0.95); }
+}
+
+@keyframes aurora-drift-2 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-50px, 30px) scale(1.1); }
+  100% { transform: translate(40px, -40px) scale(0.9); }
 }
 
 h1, h2, h3, h4, h5, h6 {

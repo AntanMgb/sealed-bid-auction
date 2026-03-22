@@ -16,7 +16,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen antialiased" style={{ background: "#050508" }}>
-        <AppWalletProvider>{children}</AppWalletProvider>
+        <div className="aurora-bg">
+          <div className="aurora-blob-1" />
+          <div className="aurora-blob-2" />
+        </div>
+        <div className="relative z-[1]">
+          <AppWalletProvider>{children}</AppWalletProvider>
+        </div>
       </body>
     </html>
   );
