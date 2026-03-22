@@ -6,7 +6,7 @@ import { AnchorProvider, BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { createAuction, delegateAuction, getAuctionPda, getProgram } from "@/lib/program";
 import { getDevnetConnection, getTeeValidatorIdentity } from "@/lib/magicblock";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
+import { getAssociatedTokenAddr } from "@/lib/program";
 
 interface Props {
   onCreated: (auctionPda: string, title: string) => void;
@@ -82,7 +82,7 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
       const reserveLamports = new BN(Math.floor(reserveNum * 1e9));
       const durationSec = new BN(parseInt(duration));
 
-      const sellerNftAccount = await getAssociatedTokenAddress(nftMint, publicKey);
+      const sellerNftAccount = await getAssociatedTokenAddr(nftMint, publicKey);
 
       // Step 1: Create on L1
       setStep("creating");

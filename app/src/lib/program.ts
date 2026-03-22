@@ -6,7 +6,8 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program, BN, AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 import { ConnectionMagicRouter } from "@magicblock-labs/ephemeral-rollups-sdk";
 import {
   PROGRAM_ID,
@@ -21,6 +22,15 @@ import {
 } from "./constants";
 
 const NFT_ESCROW_SEED = Buffer.from("nft_escrow");
+
+/** Derive associated token address without importing @solana/spl-token */
+export function getAssociatedTokenAddr(mint: PublicKey, owner: PublicKey): PublicKey {
+  const [ata] = PublicKey.findProgramAddressSync(
+    [owner.toBytes(), TOKEN_PROGRAM_ID.toBytes(), mint.toBytes()],
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+  return ata;
+}
 import IDL from "../idl/sealed_bid_auction.json";
 
 // ─── PDA Helpers ─────────────────────────────────────────────────────────────

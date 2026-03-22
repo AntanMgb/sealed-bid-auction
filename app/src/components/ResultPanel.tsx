@@ -4,10 +4,9 @@ import { FC } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { getProgram, settleAuction, cancelAuction, getEscrowPda, AuctionState } from "@/lib/program";
+import { getProgram, settleAuction, cancelAuction, getEscrowPda, getAssociatedTokenAddr, AuctionState } from "@/lib/program";
 import { TeeAttestation, getDevnetConnection } from "@/lib/magicblock";
 import { TEE_VALIDATOR_DEVNET } from "@/lib/constants";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { BN } from "@coral-xyz/anchor";
 
 interface Props {
@@ -48,7 +47,7 @@ export const ResultPanel: FC<Props> = ({
     const program = getProgram(provider);
 
     const escrowNftAccount = getEscrowPda(auction.seller, new BN(auction.auctionId));
-    const winnerNftAccount = await getAssociatedTokenAddress(
+    const winnerNftAccount = await getAssociatedTokenAddr(
       auction.nftMint,
       publicKey
     );
@@ -79,7 +78,7 @@ export const ResultPanel: FC<Props> = ({
     const program = getProgram(provider);
 
     const escrowTokenAccount = getEscrowPda(auction.seller, new BN(auction.auctionId));
-    const sellerTokenAccount = await getAssociatedTokenAddress(
+    const sellerTokenAccount = await getAssociatedTokenAddr(
       auction.nftMint,
       auction.seller
     );

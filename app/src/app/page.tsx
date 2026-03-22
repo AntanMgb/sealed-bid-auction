@@ -69,37 +69,26 @@ export default function Home() {
   const [loadingAuctions, setLoadingAuctions] = useState(false);
   const [myAuctions, setMyAuctions] = useState<{ pda: string; title: string; createdAt: number; status?: string }[]>([]);
 
+  // Clear stale localStorage from old program deployments
+  useEffect(() => {
+    const CURRENT_PROGRAM = "FSo5XfH1WpttJYtGqLL2GFyBpbn54XDxvqFhYCFTLuwh";
+    try {
+      const lastProgram = localStorage.getItem("program-id");
+      if (lastProgram !== CURRENT_PROGRAM) {
+        localStorage.removeItem("my-auctions");
+        localStorage.removeItem("auction-registry");
+        localStorage.setItem("program-id", CURRENT_PROGRAM);
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     try {
       const saved: { pda: string; title: string; createdAt: number }[] =
         JSON.parse(localStorage.getItem("my-auctions") || "[]");
       setMyAuctions(saved);
-      if (publicKey && signTransaction && saved.length > 0) {
-        (async () => {
-          const makeProvider = (conn: any) => new AnchorProvider(
-            conn,
-            { publicKey, signTransaction, signAllTransactions: async (t: any) => t },
-            { commitment: "confirmed" }
-          );
-          const routerProg = getProgram(makeProvider(getMagicRouterConnection()));
-          const updated = await Promise.all(
-            saved.map(async (a) => {
-              try {
-                const data = await fetchAuction(routerProg, new PublicKey(a.pda));
-                if (!data) return { ...a, status: "unknown" };
-                if ("settled" in data.status) return { ...a, status: "settled" };
-                if ("closed" in data.status) return { ...a, status: "closed" };
-                const expired = Date.now() >= data.endTime.toNumber() * 1000;
-                if (expired) return { ...a, status: "expired" };
-                return { ...a, status: "live" };
-              } catch { return { ...a, status: "unknown" }; }
-            })
-          );
-          setMyAuctions(updated);
-        })();
-      }
     } catch {}
-  }, [publicKey, signTransaction]);
+  }, []);
 
   function registerAuction(pdaStr: string, title?: string) {
     try {
@@ -152,9 +141,7 @@ export default function Home() {
     }
   }, [publicKey, signTransaction]);
 
-  useEffect(() => {
-    if (connected) { loadAuctions(); }
-  }, [connected, loadAuctions]);
+  // Don't auto-load on connect — user clicks "Refresh" to load
 
   function getStatusLabel(status: AuctionState["status"]) {
     if ("settled" in status) return { label: "Settled", cls: "text-[var(--accent-magenta)] border-[var(--accent-magenta)]/30 bg-[var(--accent-magenta)]/10" };
