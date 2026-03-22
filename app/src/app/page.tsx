@@ -40,7 +40,6 @@ export default function Home() {
   const { connected, publicKey, signTransaction } = useWallet();
   const [auctionPdaRaw, setAuctionPdaRaw] = useState<string | null>(null);
   const [joinInput, setJoinInput] = useState("");
-  const [activeView, setActiveView] = useState<"create" | "join" | "browse">("create");
 
   function setAuctionPda(pda: string | null) {
     setAuctionPdaRaw(pda);
@@ -154,8 +153,8 @@ export default function Home() {
   }, [publicKey, signTransaction]);
 
   useEffect(() => {
-    if (activeView === "browse" && connected) { loadAuctions(); }
-  }, [activeView, connected, loadAuctions]);
+    if (connected) { loadAuctions(); }
+  }, [connected, loadAuctions]);
 
   function getStatusLabel(status: AuctionState["status"]) {
     if ("settled" in status) return { label: "Settled", cls: "text-[var(--accent-magenta)] border-[var(--accent-magenta)]/30 bg-[var(--accent-magenta)]/10" };
@@ -238,135 +237,149 @@ export default function Home() {
             <AuctionRoom auctionPdaStr={auctionPdaRaw} />
           </div>
         ) : (
-          <div className="max-w-xl mx-auto">
-            {/* Tab switcher */}
-            <div className="flex rounded-full p-1 mb-5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-              {(["create", "join", "browse"] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setActiveView(v)}
-                  className="flex-1 py-2 rounded-full text-sm font-medium transition-all"
-                  style={{
-                    background: activeView === v ? "rgba(136,51,255,0.2)" : "transparent",
-                    color: activeView === v ? "white" : "var(--text-dim)",
-                    border: activeView === v ? "1px solid rgba(136,51,255,0.3)" : "1px solid transparent",
-                  }}
-                >
-                  {v === "create" ? "Create" : v === "join" ? "Join" : "Browse"}
-                </button>
-              ))}
-            </div>
-
-            {activeView === "create" ? (
-              <CreateAuction onCreated={(pda, title) => { registerAuction(pda, title); setAuctionPda(pda); }} />
-            ) : activeView === "join" ? (
-              <div className="card p-5">
-                <h2 className="text-lg font-bold text-white mb-4" style={{ fontFamily: "'Unbounded', sans-serif" }}>
-                  Join Auction
-                </h2>
-                <label className="text-xs block mb-1" style={{ color: "var(--text-dim)" }}>
-                  Auction PDA address
-                </label>
-                <input
-                  value={joinInput}
-                  onChange={(e) => setJoinInput(e.target.value)}
-                  placeholder="Enter auction PDA..."
-                  className="input mono mb-3"
-                  style={{ fontSize: "13px" }}
-                />
-                <button
-                  onClick={() => { if (joinInput) { registerAuction(joinInput); setAuctionPda(joinInput); } }}
-                  disabled={!joinInput}
-                  className="btn-accent w-full disabled:opacity-30"
-                >
-                  View Auction
-                </button>
+          <div>
+            {/* Two-column layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              {/* Left: Create Auction (wider) */}
+              <div className="lg:col-span-3">
+                <CreateAuction onCreated={(pda, title) => { registerAuction(pda, title); setAuctionPda(pda); }} />
               </div>
-            ) : (
-              <div className="card p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-white" style={{ fontFamily: "'Unbounded', sans-serif" }}>All Auctions</h2>
-                  <button onClick={loadAuctions} disabled={loadingAuctions} className="text-xs transition-colors" style={{ color: "var(--accent-violet)" }}>
-                    {loadingAuctions ? "Loading..." : "Refresh"}
-                  </button>
-                </div>
-                {loadingAuctions && auctions.length === 0 ? (
-                  <div className="text-center py-8" style={{ color: "var(--text-dim)" }}>Loading auctions from Solana...</div>
-                ) : auctions.length === 0 ? (
-                  <div className="text-center py-8" style={{ color: "var(--text-dim)" }}>No auctions found. Create one!</div>
-                ) : (
-                  <div className="space-y-2">
-                    {auctions.map((a) => {
-                      const s = getStatusLabel(a.account.status);
-                      const endMs = a.account.endTime.toNumber() * 1000;
-                      const isExpired = Date.now() >= endMs;
-                      const isActive = !isExpired && ("delegated" in a.account.status || "created" in a.account.status);
-                      return (
-                        <button
-                          key={a.publicKey.toBase58()}
-                          onClick={() => setAuctionPda(a.publicKey.toBase58())}
-                          className="w-full text-left rounded-xl p-4 transition-all hover:-translate-y-0.5"
-                          style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="font-semibold text-white truncate">{a.account.title || "Untitled"}</div>
-                              <div className="mono text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>{a.publicKey.toBase58().slice(0, 16)}...</div>
-                            </div>
-                            <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full border ${s.cls}`}>{s.label}</span>
-                          </div>
-                          <div className="flex items-center gap-4 mt-2 text-xs" style={{ color: "var(--text-dim)" }}>
-                            <span>Reserve: {(a.account.reservePrice.toNumber() / 1e9).toFixed(3)} SOL</span>
-                            <span>Bids: {a.account.bidCount}</span>
-                            {isActive && <span style={{ color: "var(--accent-violet)" }}>Active</span>}
-                            {isExpired && !("closed" in a.account.status) && !("settled" in a.account.status) && (
-                              <span style={{ color: "var(--accent-amber)" }}>Expired</span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
+
+              {/* Right: sidebar */}
+              <div className="lg:col-span-2 space-y-5">
+                {/* Join by PDA */}
+                <div className="card p-5">
+                  <h2 className="text-base font-bold text-white mb-3" style={{ fontFamily: "'Unbounded', sans-serif" }}>
+                    Join by Address
+                  </h2>
+                  <div className="flex gap-2">
+                    <input
+                      value={joinInput}
+                      onChange={(e) => setJoinInput(e.target.value)}
+                      placeholder="Paste auction PDA..."
+                      className="input mono flex-1"
+                      style={{ fontSize: "12px" }}
+                    />
+                    <button
+                      onClick={() => { if (joinInput) { registerAuction(joinInput); setAuctionPda(joinInput); } }}
+                      disabled={!joinInput}
+                      className="btn-accent shrink-0 disabled:opacity-30"
+                      style={{ padding: "10px 18px" }}
+                    >
+                      Go
+                    </button>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
 
-            {/* My Auctions */}
-            {myAuctions.length > 0 && (() => {
-              const liveOne = myAuctions.find((a) => a.status === "live");
-              const closedOne = myAuctions.find((a) => a.status === "closed" || a.status === "settled");
-              const shown = [liveOne, closedOne].filter(Boolean) as typeof myAuctions;
-              if (shown.length === 0) shown.push(...myAuctions.slice(0, 2));
-              const statusBadge = (s?: string) => {
-                if (s === "live") return <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ color: "var(--accent-violet)", background: "rgba(136,51,255,0.15)", border: "1px solid rgba(136,51,255,0.3)" }}>Live</span>;
-                if (s === "closed" || s === "settled") return <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ color: "#4ade80", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)" }}>Closed</span>;
-                if (s === "expired") return <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ color: "var(--accent-amber)", background: "rgba(255,170,34,0.1)", border: "1px solid rgba(255,170,34,0.3)" }}>Expired</span>;
-                return null;
-              };
-              return (
-                <div className="card p-5 mt-5">
-                  <h2 className="text-lg font-bold text-white mb-3" style={{ fontFamily: "'Unbounded', sans-serif" }}>My Auctions</h2>
-                  <div className="space-y-2">
-                    {shown.map((a) => (
-                      <button
-                        key={a.pda}
-                        onClick={() => setAuctionPda(a.pda)}
-                        className="w-full text-left rounded-xl p-3 transition-all hover:-translate-y-0.5"
-                        style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-white text-sm truncate">{a.title}</div>
-                            <div className="mono text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>{a.pda.slice(0, 20)}...</div>
-                          </div>
-                          {statusBadge(a.status)}
+                {/* My Auctions */}
+                {myAuctions.length > 0 && (() => {
+                  const liveOne = myAuctions.find((a) => a.status === "live");
+                  const closedOne = myAuctions.find((a) => a.status === "closed" || a.status === "settled");
+                  const shown = [liveOne, closedOne].filter(Boolean) as typeof myAuctions;
+                  if (shown.length === 0) shown.push(...myAuctions.slice(0, 2));
+                  const statusBadge = (s?: string) => {
+                    if (s === "live") return <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ color: "var(--accent-violet)", background: "rgba(136,51,255,0.15)", border: "1px solid rgba(136,51,255,0.3)" }}>Live</span>;
+                    if (s === "closed" || s === "settled") return <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ color: "#4ade80", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)" }}>Closed</span>;
+                    if (s === "expired") return <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ color: "var(--accent-amber)", background: "rgba(255,170,34,0.1)", border: "1px solid rgba(255,170,34,0.3)" }}>Expired</span>;
+                    return null;
+                  };
+                  return (
+                    <div className="card p-5">
+                      <h2 className="text-base font-bold text-white mb-3" style={{ fontFamily: "'Unbounded', sans-serif" }}>My Auctions</h2>
+                      <div className="space-y-2">
+                        {shown.map((a) => (
+                          <button
+                            key={a.pda}
+                            onClick={() => setAuctionPda(a.pda)}
+                            className="w-full text-left rounded-xl p-3 transition-all hover:-translate-y-0.5"
+                            style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="font-semibold text-white text-sm truncate">{a.title}</div>
+                                <div className="mono text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>{a.pda.slice(0, 20)}...</div>
+                              </div>
+                              {statusBadge(a.status)}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Browse All */}
+                <div className="card p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-base font-bold text-white" style={{ fontFamily: "'Unbounded', sans-serif" }}>Browse All</h2>
+                    <button onClick={loadAuctions} disabled={loadingAuctions} className="text-xs transition-colors" style={{ color: "var(--accent-violet)" }}>
+                      {loadingAuctions ? "..." : "Refresh"}
+                    </button>
+                  </div>
+                  {loadingAuctions && auctions.length === 0 ? (
+                    <div className="text-center py-6 text-xs" style={{ color: "var(--text-dim)" }}>Loading...</div>
+                  ) : auctions.length === 0 ? (
+                    <div className="text-center py-6 text-xs" style={{ color: "var(--text-dim)" }}>No auctions yet</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {auctions.map((a) => {
+                        const s = getStatusLabel(a.account.status);
+                        const endMs = a.account.endTime.toNumber() * 1000;
+                        const isExpired = Date.now() >= endMs;
+                        const isActive = !isExpired && ("delegated" in a.account.status || "created" in a.account.status);
+                        return (
+                          <button
+                            key={a.publicKey.toBase58()}
+                            onClick={() => setAuctionPda(a.publicKey.toBase58())}
+                            className="w-full text-left rounded-xl p-3 transition-all hover:-translate-y-0.5"
+                            style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="font-semibold text-white text-sm truncate">{a.account.title || "Untitled"}</div>
+                                <div className="flex items-center gap-3 mt-1 text-[10px]" style={{ color: "var(--text-dim)" }}>
+                                  <span>{(a.account.reservePrice.toNumber() / 1e9).toFixed(3)} SOL</span>
+                                  <span>{a.account.bidCount} bids</span>
+                                  {isActive && <span style={{ color: "var(--accent-violet)" }}>Active</span>}
+                                </div>
+                              </div>
+                              <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full border ${s.cls}`}>{s.label}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* How it works mini */}
+                <div className="card p-5">
+                  <h2 className="text-base font-bold text-white mb-3" style={{ fontFamily: "'Unbounded', sans-serif" }}>How It Works</h2>
+                  <div className="space-y-3">
+                    {[
+                      { num: "1", label: "Create", desc: "Set up auction on Solana L1", color: "var(--accent-blue)" },
+                      { num: "2", label: "Delegate", desc: "Move to TEE (Intel TDX)", color: "var(--accent-violet)" },
+                      { num: "3", label: "Bid", desc: "Sealed bids inside enclave", color: "var(--accent-magenta)" },
+                      { num: "4", label: "Reveal", desc: "TEE computes winner", color: "var(--accent-pink)" },
+                      { num: "5", label: "Settle", desc: "Result committed to L1", color: "#4ade80" },
+                    ].map((s) => (
+                      <div key={s.num} className="flex items-center gap-3">
+                        <span
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                          style={{ background: s.color, color: "white" }}
+                        >
+                          {s.num}
+                        </span>
+                        <div>
+                          <span className="text-sm font-semibold text-white">{s.label}</span>
+                          <span className="text-xs ml-2" style={{ color: "var(--text-dim)" }}>{s.desc}</span>
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
-              );
-            })()}
+              </div>
+            </div>
           </div>
         )}
 
