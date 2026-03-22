@@ -14,6 +14,7 @@ import {
   PERM_GROUP_SEED,
   TEE_VALIDATOR_DEVNET,
   PERMISSION_PROGRAM_ID,
+  DELEGATION_PROGRAM_ID,
   MAGIC_PROGRAM,
   MAGIC_CONTEXT,
 } from "./constants";
@@ -50,6 +51,24 @@ export function getPermGroupPda(
     PROGRAM_ID
   );
   return pda;
+}
+
+// ─── Delegation PDA Helpers ───────────────────────────────────────────────────
+
+function getDelegationPdas(accountToDelegate: PublicKey) {
+  const [buffer] = PublicKey.findProgramAddressSync(
+    [Buffer.from("buffer"), accountToDelegate.toBytes()],
+    DELEGATION_PROGRAM_ID
+  );
+  const [delegationRecord] = PublicKey.findProgramAddressSync(
+    [Buffer.from("delegation"), accountToDelegate.toBytes()],
+    DELEGATION_PROGRAM_ID
+  );
+  const [delegationMetadata] = PublicKey.findProgramAddressSync(
+    [Buffer.from("delegation-metadata"), accountToDelegate.toBytes()],
+    DELEGATION_PROGRAM_ID
+  );
+  return { buffer, delegationRecord, delegationMetadata };
 }
 
 // ─── Program Client ───────────────────────────────────────────────────────────
@@ -112,11 +131,20 @@ export async function delegateAuction(
   auctionPda: PublicKey,
   auctionId: BN
 ): Promise<string> {
+  const { buffer, delegationRecord, delegationMetadata } =
+    getDelegationPdas(auctionPda);
+
   const tx = await program.methods
     .delegateAuction(auctionId)
     .accounts({
       payer: seller,
       auction: auctionPda,
+      buffer,
+      delegationRecord,
+      delegationMetadata,
+      ownerProgram: PROGRAM_ID,
+      delegationProgram: DELEGATION_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
     })
     .remainingAccounts([
       { pubkey: TEE_VALIDATOR_DEVNET, isSigner: false, isWritable: false },
@@ -155,6 +183,8 @@ export async function delegateBid(
   auctionPda: PublicKey
 ): Promise<string> {
   const bidPda = getBidPda(auctionPda, bidder);
+  const { buffer, delegationRecord, delegationMetadata } =
+    getDelegationPdas(bidPda);
 
   const tx = await program.methods
     .delegateBid()
@@ -162,6 +192,12 @@ export async function delegateBid(
       bidder,
       auction: auctionPda,
       bid: bidPda,
+      buffer,
+      delegationRecord,
+      delegationMetadata,
+      ownerProgram: PROGRAM_ID,
+      delegationProgram: DELEGATION_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
     })
     .remainingAccounts([
       { pubkey: TEE_VALIDATOR_DEVNET, isSigner: false, isWritable: false },
