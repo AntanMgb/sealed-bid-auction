@@ -2,6 +2,7 @@
 const nextConfig = {
   webpack: (config) => {
     config.resolve.fallback = { fs: false, path: false, os: false };
+    config.externals.push("pino-pretty", "encoding");
     return config;
   },
   async rewrites() {
