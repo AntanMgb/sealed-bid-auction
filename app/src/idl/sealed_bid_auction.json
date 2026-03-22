@@ -75,6 +75,10 @@
           "signer": true
         },
         {
+          "name": "auction",
+          "writable": true
+        },
+        {
           "name": "buffer",
           "writable": true
         },
@@ -84,10 +88,6 @@
         },
         {
           "name": "delegation_metadata",
-          "writable": true
-        },
-        {
-          "name": "auction",
           "writable": true
         },
         {
@@ -150,6 +150,10 @@
           "name": "auction"
         },
         {
+          "name": "bid",
+          "writable": true
+        },
+        {
           "name": "buffer",
           "writable": true
         },
@@ -159,10 +163,6 @@
         },
         {
           "name": "delegation_metadata",
-          "writable": true
-        },
-        {
-          "name": "bid",
           "writable": true
         },
         {
