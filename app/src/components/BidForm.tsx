@@ -14,7 +14,7 @@ import {
   delegateBid,
   getProgram,
 } from "@/lib/program";
-import { getDevnetConnection, getMagicRouterConnection } from "@/lib/magicblock";
+import { getDevnetConnection, createTeeSession } from "@/lib/magicblock";
 import { AuctionState } from "@/lib/program";
 
 interface Props {
@@ -24,7 +24,7 @@ interface Props {
 }
 
 export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey, signTransaction, signMessage } = useWallet();
 
   const [amount, setAmount] = useState("");
   const [step, setStep] = useState<
@@ -36,7 +36,7 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
   const reserveSol = auction.reservePrice.toNumber() / 1e9;
 
   async function handleBid() {
-    if (!publicKey || !signTransaction) return;
+    if (!publicKey || !signTransaction || !signMessage) return;
     setError(null);
 
     const amountLamports = Math.floor(parseFloat(amount) * 1e9);
@@ -94,19 +94,17 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
 
       setStep("bidding");
 
-      // Use Magic Router to send the bid — it automatically routes to the
-      // correct ER based on delegation status. TEE auth is only needed for
-      // reading private data, not for writing (placing bids).
-      const routerConn = getMagicRouterConnection();
-      const routerProvider = new AnchorProvider(
-        routerConn,
+      const { teeConnection } = await createTeeSession(publicKey, signMessage);
+
+      const teeProvider = new AnchorProvider(
+        teeConnection,
         { publicKey, signTransaction, signAllTransactions: async (txs) => txs },
         { commitment: "confirmed" }
       );
-      const routerProgram = getProgram(routerProvider);
+      const teeProgram = getProgram(teeProvider);
 
       const sig = await placeBid(
-        routerProgram,
+        teeProgram,
         publicKey,
         auctionPda,
         new BN(amountLamports)

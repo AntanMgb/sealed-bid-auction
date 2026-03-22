@@ -15,7 +15,7 @@ import {
   getProgram,
   AuctionState,
 } from "@/lib/program";
-import { subscribeToAuctionEvents, AuctionEvent, TeeAttestation, getDevnetConnection, getMagicRouterConnection } from "@/lib/magicblock";
+import { subscribeToAuctionEvents, AuctionEvent, TeeAttestation, createTeeSession, getDevnetConnection, getMagicRouterConnection } from "@/lib/magicblock";
 import { BidForm } from "./BidForm";
 import { ResultPanel } from "./ResultPanel";
 import { LiveFeed } from "./LiveFeed";
@@ -25,7 +25,7 @@ interface Props {
 }
 
 export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey, signTransaction, signMessage } = useWallet();
 
   const [auction, setAuction] = useState<AuctionState | null>(null);
   const [events, setEvents] = useState<AuctionEvent[]>([]);
@@ -101,7 +101,7 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
   }, [auction]);
 
   async function handleClose() {
-    if (!publicKey || !signTransaction || !auction) return;
+    if (!publicKey || !signTransaction || !signMessage || !auction) return;
     setClosing(true);
     setCloseError(null);
     try {
@@ -119,11 +119,11 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       await devnetConn.confirmTransaction(topUpSig, "confirmed");
       console.log("[L1] Escrow top-up for close tx:", topUpSig);
 
-      // Use Magic Router — it automatically routes to the ER for delegated accounts.
-      // TEE auth is only needed for reading private data, not for close_auction.
-      const routerConn = getMagicRouterConnection();
+      const { teeConnection, attestation: att } = await createTeeSession(publicKey, signMessage);
+      setAttestation(att);
+
       const routerProvider = new AnchorProvider(
-        routerConn,
+        teeConnection,
         { publicKey, signTransaction, signAllTransactions: async (t) => t },
         { commitment: "confirmed" }
       );
