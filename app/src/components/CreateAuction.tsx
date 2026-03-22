@@ -3,8 +3,9 @@
 import { FC, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { AnchorProvider, BN } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
 import { createAuction, delegateAuction, getAuctionPda, getProgram } from "@/lib/program";
-import { getDevnetConnection } from "@/lib/magicblock";
+import { getDevnetConnection, getTeeValidatorIdentity } from "@/lib/magicblock";
 
 interface Props {
   onCreated: (auctionPda: string, title: string) => void;
@@ -68,9 +69,12 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
 
       const pda = getAuctionPda(publicKey, auctionId);
 
-      // Step 2: Delegate to TEE (Private ER)
+      // Step 2: Delegate to TEE (Private ER) using the real validator identity
       setStep("delegating");
-      await delegateAuction(program, publicKey, pda, auctionId);
+      const teeValidatorStr = await getTeeValidatorIdentity();
+      const teeValidator = teeValidatorStr ? new PublicKey(teeValidatorStr) : undefined;
+      console.log("[TEE] Delegating auction to validator:", teeValidatorStr);
+      await delegateAuction(program, publicKey, pda, auctionId, teeValidator);
 
       const pdaStr = pda.toBase58();
       if (imagePreview) {

@@ -113,7 +113,31 @@ export async function createTeeSession(
 
   console.log("[TEE] Connection URL:", teeUrl);
 
+  // Log the actual TEE validator identity — useful for debugging delegation mismatches.
+  try {
+    const validatorInfo = await teeConnection.getClosestValidator();
+    console.log("[TEE] Actual validator identity:", validatorInfo?.identity);
+  } catch (e) {
+    console.warn("[TEE] Could not query validator identity:", e);
+  }
+
   return { teeEndpoint: teeUrl, teeConnection, attestation: null };
+}
+
+/**
+ * Queries the actual TEE validator identity from tee.magicblock.app.
+ * Use this key (not the hardcoded constant) when delegating accounts.
+ */
+export async function getTeeValidatorIdentity(): Promise<string | null> {
+  try {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const proxyUrl = `${origin}/api/tee-rpc`;
+    const conn = new ConnectionMagicRouter(proxyUrl, { commitment: "confirmed" });
+    const info = await conn.getClosestValidator();
+    return info?.identity ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Devnet L1 Connection ─────────────────────────────────────────────────────

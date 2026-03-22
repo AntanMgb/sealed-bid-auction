@@ -14,7 +14,7 @@ import {
   delegateBid,
   getProgram,
 } from "@/lib/program";
-import { getDevnetConnection, createTeeSession } from "@/lib/magicblock";
+import { getDevnetConnection, createTeeSession, getTeeValidatorIdentity } from "@/lib/magicblock";
 import { AuctionState } from "@/lib/program";
 
 interface Props {
@@ -77,6 +77,11 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
       );
       const l1Program = getProgram(l1Provider);
 
+      // Fetch the real TEE validator identity so delegation goes to the right ER
+      const teeValidatorStr = await getTeeValidatorIdentity();
+      const teeValidator = teeValidatorStr ? new PublicKey(teeValidatorStr) : undefined;
+      console.log("[TEE] Validator for delegation:", teeValidatorStr);
+
       // Skip init/delegate if already done (e.g. on retry after TEE auth failure)
       try {
         await initBid(l1Program, publicKey, auctionPda);
@@ -86,8 +91,8 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
       }
 
       try {
-        await delegateBid(l1Program, publicKey, auctionPda);
-        console.log("[L1] Bid PDA delegated to TEE");
+        await delegateBid(l1Program, publicKey, auctionPda, teeValidator);
+        console.log("[L1] Bid PDA delegated to TEE validator:", teeValidatorStr);
       } catch (e: any) {
         console.log("[L1] delegateBid skipped (already delegated?):", e?.message?.slice(0, 80));
       }

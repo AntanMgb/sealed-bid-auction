@@ -131,7 +131,8 @@ export async function delegateAuction(
   program: Program,
   seller: PublicKey,
   auctionPda: PublicKey,
-  auctionId: BN
+  auctionId: BN,
+  teeValidator?: PublicKey
 ): Promise<string> {
   // Build our program's delegate_auction instruction manually.
   // This calls OUR program (not the delegation program directly),
@@ -166,8 +167,8 @@ export async function delegateAuction(
     { pubkey: PROGRAM_ID, isSigner: false, isWritable: false },
     { pubkey: DELEGATION_PROGRAM_ID, isSigner: false, isWritable: false },
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-    // remaining_accounts[0] = TEE validator
-    { pubkey: TEE_VALIDATOR_DEVNET, isSigner: false, isWritable: false },
+    // remaining_accounts[0] = TEE validator (use dynamic identity if provided)
+    { pubkey: teeValidator ?? TEE_VALIDATOR_DEVNET, isSigner: false, isWritable: false },
   ];
 
   const ix = new TransactionInstruction({
@@ -223,7 +224,8 @@ export async function initBid(
 export async function delegateBid(
   program: Program,
   bidder: PublicKey,
-  auctionPda: PublicKey
+  auctionPda: PublicKey,
+  teeValidator?: PublicKey
 ): Promise<string> {
   const bidPda = getBidPda(auctionPda, bidder);
   const { buffer, delegationRecord, delegationMetadata } =
@@ -243,7 +245,7 @@ export async function delegateBid(
       systemProgram: SystemProgram.programId,
     })
     .remainingAccounts([
-      { pubkey: TEE_VALIDATOR_DEVNET, isSigner: false, isWritable: false },
+      { pubkey: teeValidator ?? TEE_VALIDATOR_DEVNET, isSigner: false, isWritable: false },
     ])
     .rpc({ commitment: "confirmed" });
 
