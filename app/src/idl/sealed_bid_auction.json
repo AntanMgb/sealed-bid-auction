@@ -76,36 +76,15 @@
         },
         {
           "name": "buffer",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              { "kind": "const", "value": [98, 117, 102, 102, 101, 114] },
-              { "kind": "account", "path": "auction" }
-            ],
-            "program": { "kind": "account", "path": "delegation_program" }
-          }
+          "writable": true
         },
         {
           "name": "delegation_record",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              { "kind": "const", "value": [100, 101, 108, 101, 103, 97, 116, 105, 111, 110] },
-              { "kind": "account", "path": "auction" }
-            ],
-            "program": { "kind": "account", "path": "delegation_program" }
-          }
+          "writable": true
         },
         {
           "name": "delegation_metadata",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              { "kind": "const", "value": [100, 101, 108, 101, 103, 97, 116, 105, 111, 110, 45, 109, 101, 116, 97, 100, 97, 116, 97] },
-              { "kind": "account", "path": "auction" }
-            ],
-            "program": { "kind": "account", "path": "delegation_program" }
-          }
+          "writable": true
         },
         {
           "name": "auction",
@@ -172,36 +151,15 @@
         },
         {
           "name": "buffer",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              { "kind": "const", "value": [98, 117, 102, 102, 101, 114] },
-              { "kind": "account", "path": "bid" }
-            ],
-            "program": { "kind": "account", "path": "delegation_program" }
-          }
+          "writable": true
         },
         {
           "name": "delegation_record",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              { "kind": "const", "value": [100, 101, 108, 101, 103, 97, 116, 105, 111, 110] },
-              { "kind": "account", "path": "bid" }
-            ],
-            "program": { "kind": "account", "path": "delegation_program" }
-          }
+          "writable": true
         },
         {
           "name": "delegation_metadata",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              { "kind": "const", "value": [100, 101, 108, 101, 103, 97, 116, 105, 111, 110, 45, 109, 101, 116, 97, 100, 97, 116, 97] },
-              { "kind": "account", "path": "bid" }
-            ],
-            "program": { "kind": "account", "path": "delegation_program" }
-          }
+          "writable": true
         },
         {
           "name": "bid",
