@@ -55,8 +55,7 @@ export function getPermGroupPda(
 // ─── Program Client ───────────────────────────────────────────────────────────
 
 export function getProgram(provider: AnchorProvider): Program {
-  const idlWithAddress = { ...(IDL as any), address: PROGRAM_ID.toBase58() };
-  return new Program(idlWithAddress as unknown as anchor.Idl, provider);
+  return new Program(IDL as unknown as anchor.Idl, provider);
 }
 
 // ─── Instructions ─────────────────────────────────────────────────────────────
