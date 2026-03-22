@@ -40,7 +40,6 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
 
   const auctionPda = new PublicKey(auctionPdaStr);
 
-  // Load NFT image and auction type from localStorage
   useEffect(() => {
     try {
       const img = localStorage.getItem(`auction-image-${auctionPdaStr}`);
@@ -50,8 +49,6 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
     } catch {}
   }, [auctionPdaStr]);
 
-  // Fetch auction state — try Magic Router first (routes to ER for delegated accounts),
-  // fall back to devnet L1 if router fails
   const refresh = useCallback(async () => {
     if (!publicKey || !signTransaction) return;
     const makeProvider = (conn: any) => new AnchorProvider(
@@ -60,10 +57,8 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       { commitment: "confirmed" }
     );
 
-    // Try Magic Router (auto-routes to ER for delegated accounts)
     let data = await fetchAuction(getProgram(makeProvider(getMagicRouterConnection())), auctionPda);
 
-    // Fall back to devnet L1
     if (!data) {
       data = await fetchAuction(getProgram(makeProvider(getDevnetConnection())), auctionPda);
     }
@@ -77,13 +72,11 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
     return () => clearInterval(id);
   }, [refresh]);
 
-  // Subscribe to real-time events via Magic Router (routes to PER automatically)
   useEffect(() => {
     const routerConn = getMagicRouterConnection();
     const unsubscribe = subscribeToAuctionEvents(routerConn, auctionPda, (ev) => {
       setEvents((prev) => [...prev.slice(-49), ev]);
 
-      // Capture commit tx signature when auction closes
       if (ev.type === "auction_closed" && ev.data.slot) {
         setCommitTxSig(`slot-${ev.data.slot}`);
       }
@@ -91,7 +84,6 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
     return unsubscribe;
   }, [auctionPdaStr]);
 
-  // Countdown timer
   useEffect(() => {
     if (!auction) return;
     const update = () => {
@@ -108,13 +100,11 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
     return () => clearInterval(id);
   }, [auction]);
 
-  // Close auction (trigger TEE computation)
   async function handleClose() {
     if (!publicKey || !signTransaction || !signMessage || !auction) return;
     setClosing(true);
     setCloseError(null);
     try {
-      // Top up ephemeral balance for ER fees
       const devnetConn = getDevnetConnection();
       const escrowPda = escrowPdaFromEscrowAuthority(publicKey);
       const topUpIx = createTopUpEscrowInstruction(
@@ -129,7 +119,6 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       await devnetConn.confirmTransaction(topUpSig, "confirmed");
       console.log("[L1] Escrow top-up for close tx:", topUpSig);
 
-      // Authenticate with TEE
       const { teeConnection, attestation: att } = await createTeeSession(
         publicKey,
         signMessage
@@ -143,12 +132,10 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
       );
       const teeProgram = getProgram(teeProvider);
 
-      // Get bidders list from auction state (read via Magic Router = ER state)
       let bidders: PublicKey[] = auction.bidders.length > 0
         ? auction.bidders
         : knownBidders.map((b) => new PublicKey(b));
 
-      // Fallback: scan TEE for Bid accounts if we still have none
       if (bidders.length === 0) {
         try {
           const teeAuction = await fetchAuction(teeProgram, auctionPda);
@@ -180,31 +167,31 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
 
   if (!auction) {
     return (
-      <div className="flex items-center justify-center h-48 text-gray-500">
-        Loading auction from PER...
+      <div className="flex items-center justify-center h-48" style={{ color: "var(--text-dim)" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 rounded-full animate-spin" style={{ borderColor: "var(--accent-violet)", borderTopColor: "transparent" }} />
+          Loading auction from PER...
+        </div>
       </div>
     );
   }
 
-  // After create+delegate, L1 status may still show "created" since
-  // delegate_auction doesn't update the status field. Treat both as active.
   const isDelegated = "delegated" in auction.status || "created" in auction.status;
   const isClosed = "closed" in auction.status || "settled" in auction.status;
   const isExpired = Date.now() >= auction.endTime.toNumber() * 1000;
-  const isSellerViewing =
-    publicKey?.toBase58() === auction.seller.toBase58();
 
   return (
     <div className="space-y-5">
       {/* Auction Header */}
-      <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
+      <div className="card p-6">
         {/* NFT Image */}
         {nftImage && (
-          <div className="mb-4 rounded-lg overflow-hidden border border-gray-700">
+          <div className="mb-5 rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
             <img
               src={nftImage}
               alt={auction.title}
-              className="w-full aspect-square object-contain bg-gray-800"
+              className="w-full aspect-square object-contain"
+              style={{ background: "var(--surface-hover)" }}
             />
           </div>
         )}
@@ -213,72 +200,70 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               {auctionTypeLabel && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 border border-gray-600 text-gray-400">
+                <span className="pill text-[10px] py-0.5 px-2">
                   {auctionTypeLabel === "nft" ? "🎨 NFT" : auctionTypeLabel === "token" ? "🪙 Token" : "🏛️ Governance"}
                 </span>
               )}
             </div>
-            <h1 className="text-2xl font-bold text-white truncate mt-1">
+            <h1 className="text-2xl font-bold text-white truncate mt-2" style={{ fontFamily: "'Unbounded', sans-serif" }}>
               {auction.title}
             </h1>
-            <div className="text-xs text-gray-500 mt-1 font-mono break-all">
+            <div className="text-xs mt-1 mono break-all" style={{ color: "var(--text-dim)" }}>
               {auctionPdaStr}
             </div>
           </div>
           <div className="shrink-0">
             {isDelegated && !isExpired && (
-              <span className="flex items-center gap-1.5 bg-teal-900/50 border border-teal-700 text-teal-400 text-xs px-3 py-1 rounded-full font-medium">
+              <span className="flex items-center gap-1.5 pill text-xs font-medium" style={{ color: "var(--accent-violet)" }}>
                 <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-teal-500" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: "var(--accent-violet)" }} />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5" style={{ background: "var(--accent-violet)" }} />
                 </span>
                 Live in TEE
               </span>
             )}
             {isExpired && !isClosed && (
-              <span className="bg-orange-900/50 border border-orange-700 text-orange-400 text-xs px-3 py-1 rounded-full">
+              <span className="pill text-xs" style={{ color: "var(--accent-amber)", borderColor: "rgba(255,170,34,0.3)" }}>
                 Expired — awaiting close
               </span>
             )}
             {isClosed && (
-              <span className="bg-green-900/50 border border-green-700 text-green-400 text-xs px-3 py-1 rounded-full">
+              <span className="pill text-xs" style={{ color: "#4ade80", borderColor: "rgba(74,222,128,0.3)" }}>
                 Closed
               </span>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mt-4">
-          <div className="bg-gray-800 rounded-lg p-3">
-            <div className="text-xs text-gray-500">Reserve Price</div>
-            <div className="text-white font-bold mt-0.5">
+        <div className="grid grid-cols-3 gap-3 mt-5">
+          <div className="rounded-xl p-4" style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}>
+            <div className="text-xs" style={{ color: "var(--text-dim)" }}>Reserve Price</div>
+            <div className="text-white font-bold mt-1">
               {(auction.reservePrice.toNumber() / 1e9).toFixed(3)} SOL
             </div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-3">
-            <div className="text-xs text-gray-500">Sealed Bids</div>
-            <div className="text-yellow-400 font-bold mt-0.5">
+          <div className="rounded-xl p-4" style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}>
+            <div className="text-xs" style={{ color: "var(--text-dim)" }}>Sealed Bids</div>
+            <div className="font-bold mt-1" style={{ color: "var(--accent-amber)" }}>
               {auction.bidCount}{" "}
-              <span className="text-gray-500 font-normal text-xs">received</span>
+              <span className="font-normal text-xs" style={{ color: "var(--text-dim)" }}>received</span>
             </div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-3">
-            <div className="text-xs text-gray-500">Time Left</div>
-            <div
-              className={`font-bold mt-0.5 ${isExpired ? "text-red-400" : "text-white"}`}
-            >
+          <div className="rounded-xl p-4" style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}>
+            <div className="text-xs" style={{ color: "var(--text-dim)" }}>Time Left</div>
+            <div className={`font-bold mt-1 ${isExpired ? "" : "text-white"}`} style={isExpired ? { color: "var(--accent-pink)" } : {}}>
               {timeLeft || "—"}
             </div>
           </div>
         </div>
 
         {/* TEE badge */}
-        <div className="mt-3 flex items-center gap-2 text-xs text-gray-600">
+        <div className="mt-4 flex items-center gap-2 text-xs" style={{ color: "var(--text-dim)" }}>
           <span>🔐</span>
           <span>
             All bid amounts are sealed inside Intel TDX. Delegated to PER
             validator{" "}
-            <span className="font-mono text-gray-500">
+            <span className="mono" style={{ color: "var(--text-mid)" }}>
               FnE6...XQnp1
             </span>
           </span>
@@ -314,26 +299,27 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
             />
           )}
 
-          {/* Close auction button (seller or anyone after expiry) */}
+          {/* Close auction button */}
           {isExpired && !isClosed && (
-            <div className="bg-gray-900 rounded-xl border border-orange-700 p-5">
-              <h3 className="font-semibold text-white mb-2">
+            <div className="card p-6" style={{ borderColor: "rgba(255,170,34,0.3)" }}>
+              <h3 className="font-bold text-white mb-2" style={{ fontFamily: "'Unbounded', sans-serif" }}>
                 Compute Winner in TEE
               </h3>
-              <p className="text-xs text-gray-500 mb-4">
+              <p className="text-xs mb-4" style={{ color: "var(--text-dim)" }}>
                 The auction has expired. Trigger winner computation — the TEE
                 will read all sealed bids, find the highest, and commit the
                 result to L1 with an Intel TDX attestation.
               </p>
               {closeError && (
-                <div className="text-red-400 text-xs bg-red-900/20 border border-red-700/50 rounded p-2 mb-3">
+                <div className="text-xs rounded-lg p-3 mb-3" style={{ color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
                   {closeError}
                 </div>
               )}
               <button
                 onClick={handleClose}
                 disabled={closing}
-                className="w-full py-2.5 rounded-lg font-semibold text-sm bg-orange-600 hover:bg-orange-500 text-white disabled:opacity-50 transition-all"
+                className="w-full py-2.5 rounded-full font-semibold text-sm text-white disabled:opacity-50 transition-all"
+                style={{ background: "var(--accent-amber)" }}
               >
                 {closing
                   ? "TEE computing winner..."

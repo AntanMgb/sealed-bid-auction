@@ -73,7 +73,6 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
       await delegateAuction(program, publicKey, pda, auctionId);
 
       const pdaStr = pda.toBase58();
-      // Save image and auction type to localStorage for the auction room
       if (imagePreview) {
         try { localStorage.setItem(`auction-image-${pdaStr}`, imagePreview); } catch {}
       }
@@ -90,43 +89,44 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
 
   if (step === "done") {
     return (
-      <div className="bg-gray-900 rounded-xl border border-teal-700 p-5">
-        <div className="text-2xl mb-2 text-center">🔐</div>
-        <div className="text-center text-teal-400 font-bold">Auction live in TEE</div>
-        <div className="mt-2 text-xs text-gray-500 text-center break-all">{auctionPda}</div>
+      <div className="card p-6 glow" style={{ borderColor: "rgba(136,51,255,0.4)" }}>
+        <div className="text-3xl mb-2 text-center">🔐</div>
+        <div className="text-center font-bold text-lg" style={{ color: "var(--accent-violet)" }}>Auction live in TEE</div>
+        <div className="mt-2 text-xs text-center break-all mono" style={{ color: "var(--text-dim)" }}>{auctionPda}</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
-      <h2 className="text-lg font-semibold text-white mb-4">Create Auction</h2>
+    <div className="card p-6">
+      <h2 className="text-lg font-bold text-white mb-5" style={{ fontFamily: "'Unbounded', sans-serif" }}>Create Auction</h2>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {/* Auction Type Selector */}
         <div>
-          <label className="text-xs text-gray-400 block mb-2">Auction Type</label>
+          <label className="text-xs block mb-2" style={{ color: "var(--text-dim)" }}>Auction Type</label>
           <div className="grid grid-cols-3 gap-2">
             {AUCTION_TYPES.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setAuctionType(t.id)}
-                className={`p-3 rounded-lg border text-center transition-all ${
-                  auctionType === t.id
-                    ? "bg-teal-900/30 border-teal-600 text-white"
-                    : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600"
-                }`}
+                className="p-3 rounded-xl text-center transition-all"
+                style={{
+                  background: auctionType === t.id ? "rgba(136,51,255,0.15)" : "var(--surface-hover)",
+                  border: auctionType === t.id ? "1px solid rgba(136,51,255,0.4)" : "1px solid var(--border)",
+                  color: auctionType === t.id ? "white" : "var(--text-dim)",
+                }}
               >
                 <div className="text-xl mb-1">{t.icon}</div>
                 <div className="text-xs font-semibold">{t.label}</div>
-                <div className="text-[10px] text-gray-500 mt-0.5">{t.desc}</div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>{t.desc}</div>
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <label className="text-xs text-gray-400 block mb-1">Title</label>
+          <label className="text-xs block mb-1" style={{ color: "var(--text-dim)" }}>Title</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -137,33 +137,38 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
                   ? "e.g. TOKEN Fair Launch"
                   : "e.g. DAO Council Seat #3"
             }
-            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500"
+            className="input"
           />
         </div>
 
         {/* NFT Image Upload */}
         {auctionType === "nft" && (
           <div>
-            <label className="text-xs text-gray-400 block mb-1">NFT Image</label>
+            <label className="text-xs block mb-1" style={{ color: "var(--text-dim)" }}>NFT Image</label>
             {imagePreview ? (
               <div className="relative">
                 <img
                   src={imagePreview}
                   alt="NFT preview"
-                  className="w-full aspect-square object-contain bg-gray-800 rounded-lg border border-gray-600"
+                  className="w-full aspect-square object-contain rounded-xl"
+                  style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}
                 />
                 <button
                   onClick={() => setImagePreview(null)}
-                  className="absolute top-2 right-2 bg-gray-900/80 text-gray-300 hover:text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
+                  className="absolute top-2 right-2 rounded-full w-7 h-7 flex items-center justify-center text-xs transition-opacity hover:opacity-100"
+                  style={{ background: "rgba(0,0,0,0.7)", color: "var(--text-mid)", border: "1px solid var(--border)" }}
                 >
                   ✕
                 </button>
               </div>
             ) : (
-              <label className="flex flex-col items-center justify-center w-full h-32 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-teal-500 transition-colors">
+              <label
+                className="flex flex-col items-center justify-center w-full h-32 rounded-xl cursor-pointer transition-all"
+                style={{ background: "var(--surface-hover)", border: "2px dashed var(--border)" }}
+              >
                 <span className="text-2xl mb-1">🖼️</span>
-                <span className="text-xs text-gray-400">Click to upload image</span>
-                <span className="text-[10px] text-gray-600 mt-0.5">PNG, JPG, GIF (max 2MB)</span>
+                <span className="text-xs" style={{ color: "var(--text-dim)" }}>Click to upload image</span>
+                <span className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>PNG, JPG, GIF (max 2MB)</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -177,7 +182,7 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-gray-400 block mb-1">Reserve Price (SOL)</label>
+            <label className="text-xs block mb-1" style={{ color: "var(--text-dim)" }}>Reserve Price (SOL)</label>
             <input
               type="text"
               inputMode="decimal"
@@ -187,33 +192,33 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
                 if (/^\d*\.?\d*$/.test(v)) setReserve(v);
               }}
               placeholder="0.1"
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500"
+              className="input"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-400 block mb-1">Duration (seconds)</label>
+            <label className="text-xs block mb-1" style={{ color: "var(--text-dim)" }}>Duration (seconds)</label>
             <input
               type="number"
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500"
+              className="input"
             />
           </div>
         </div>
 
         {error && (
-          <div className="text-red-400 text-xs bg-red-900/20 border border-red-700/50 rounded p-2">
+          <div className="text-xs rounded-lg p-3" style={{ color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
             {error}
           </div>
         )}
 
         {(step === "creating" || step === "delegating") && (
-          <div className="text-xs text-gray-400 space-y-1">
-            <div className={`flex items-center gap-2 ${step === "creating" ? "text-yellow-400" : "text-green-400"}`}>
+          <div className="text-xs space-y-2">
+            <div className="flex items-center gap-2" style={{ color: step === "creating" ? "var(--accent-amber)" : "#4ade80" }}>
               <span>{step === "creating" ? "⏳" : "✅"}</span>
               Creating auction on Solana L1...
             </div>
-            <div className={`flex items-center gap-2 ${step === "delegating" ? "text-yellow-400" : "text-gray-600"}`}>
+            <div className="flex items-center gap-2" style={{ color: step === "delegating" ? "var(--accent-amber)" : "var(--text-dim)" }}>
               <span>{step === "delegating" ? "⏳" : "○"}</span>
               Delegating to Private ER (Intel TDX)...
             </div>
@@ -223,7 +228,7 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
         <button
           onClick={handleCreate}
           disabled={!publicKey || !title || step === "creating" || step === "delegating"}
-          className="w-full py-2.5 rounded-lg font-semibold text-sm bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          className="btn-accent w-full disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {step === "creating" ? "Creating..." : step === "delegating" ? "Delegating to TEE..." : "Create & Move to TEE"}
         </button>

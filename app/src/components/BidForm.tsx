@@ -23,14 +23,6 @@ interface Props {
   onBidPlaced: () => void;
 }
 
-/**
- * Two-step bid form:
- *   Step 1: Create Permission Group on L1 (sets up privacy for the bid)
- *   Step 2: Place the sealed bid on the Private Ephemeral Rollup (TEE)
- *
- * The bid amount NEVER touches L1 or the public Solana state.
- * It is sent directly to the TEE endpoint and stored in a permission-gated PDA.
- */
 export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
   const { publicKey, signMessage, signTransaction, sendTransaction } =
     useWallet();
@@ -59,7 +51,6 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
     }
 
     try {
-      // ── Step 1: Top up escrow + create & delegate Bid PDA on L1 ──────────
       setStep("escrow");
       const devnetConn = getDevnetConnection();
 
@@ -68,7 +59,7 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
         escrowPda,
         publicKey,
         publicKey,
-        5_000_000, // 0.005 SOL for ER fees
+        5_000_000,
         255
       );
       const topUpTx = new Transaction().add(topUpIx);
@@ -80,7 +71,6 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
       await devnetConn.confirmTransaction(topUpSig, "confirmed");
       console.log("[L1] Escrow top-up tx:", topUpSig);
 
-      // Create and delegate the Bid PDA on L1 (ER requires pre-created accounts)
       const l1Provider = new AnchorProvider(
         devnetConn,
         { publicKey, signTransaction, signAllTransactions: async (txs) => txs },
@@ -93,7 +83,6 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
       await delegateBid(l1Program, publicKey, auctionPda);
       console.log("[L1] Bid PDA delegated to TEE");
 
-      // ── Step 2: Authenticate with TEE ─────────────────────────────────────
       setStep("bidding");
 
       const { teeConnection, attestation } = await createTeeSession(
@@ -105,7 +94,6 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
         console.log("[TEE Attestation]", attestation);
       }
 
-      // ── Step 3: Place Sealed Bid on TEE ───────────────────────────────────
       const teeProvider = new AnchorProvider(
         teeConnection,
         { publicKey, signTransaction, signAllTransactions: async (txs) => txs },
@@ -131,31 +119,31 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
   }
 
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
-      <h2 className="text-lg font-semibold text-white mb-1">Place Sealed Bid</h2>
-      <p className="text-xs text-gray-500 mb-4">
+    <div className="card p-6">
+      <h2 className="text-lg font-bold text-white mb-1" style={{ fontFamily: "'Unbounded', sans-serif" }}>Place Sealed Bid</h2>
+      <p className="text-xs mb-5" style={{ color: "var(--text-dim)" }}>
         Your bid amount is encrypted and sent directly to the TEE — it is never
         visible on-chain until the winner is revealed.
       </p>
 
       {step === "done" ? (
-        <div className="rounded-lg bg-green-900/30 border border-green-700 p-4 text-center">
-          <div className="text-2xl mb-1">🔒</div>
-          <div className="text-green-400 font-semibold">Bid sealed in TEE</div>
-          <div className="text-xs text-gray-500 mt-1">
+        <div className="rounded-xl p-5 text-center glow" style={{ background: "rgba(136,51,255,0.1)", border: "1px solid rgba(136,51,255,0.3)" }}>
+          <div className="text-3xl mb-2">🔒</div>
+          <div className="font-bold text-lg" style={{ color: "var(--accent-violet)" }}>Bid sealed in TEE</div>
+          <div className="text-xs mt-2" style={{ color: "var(--text-dim)" }}>
             Your bid is locked inside the Intel TDX enclave. No one can see it
             until the auction closes.
           </div>
           {txSig && (
-            <div className="mt-2 text-[10px] text-gray-600 break-all">
+            <div className="mt-3 text-[10px] break-all mono" style={{ color: "var(--text-dim)" }}>
               PER tx: {txSig}
             </div>
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div>
-            <label className="text-xs text-gray-400 block mb-1">
+            <label className="text-xs block mb-1" style={{ color: "var(--text-dim)" }}>
               Bid amount (SOL)
             </label>
             <input
@@ -165,26 +153,25 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder={`min. ${reserveSol} SOL`}
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500"
+              className="input mono"
               disabled={step !== "idle" && step !== "error"}
             />
           </div>
 
           {error && (
-            <div className="text-red-400 text-xs bg-red-900/20 border border-red-700/50 rounded p-2">
+            <div className="text-xs rounded-lg p-3" style={{ color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
               {error}
             </div>
           )}
 
-          {/* Progress indicator */}
           {step === "escrow" && (
-            <div className="text-xs text-yellow-400 flex items-center gap-2">
+            <div className="text-xs flex items-center gap-2" style={{ color: "var(--accent-amber)" }}>
               <span>⏳</span>
               Topping up ephemeral escrow for ER fees...
             </div>
           )}
           {step === "bidding" && (
-            <div className="text-xs text-yellow-400 flex items-center gap-2">
+            <div className="text-xs flex items-center gap-2" style={{ color: "var(--accent-amber)" }}>
               <span>⏳</span>
               Authenticating with TEE and sealing bid...
             </div>
@@ -197,9 +184,7 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
               !amount ||
               (step !== "idle" && step !== "error")
             }
-            className="w-full py-2.5 rounded-lg font-semibold text-sm transition-all
-              bg-yellow-500 hover:bg-yellow-400 text-black
-              disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-accent w-full disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {step === "escrow"
               ? "Preparing escrow..."
@@ -208,7 +193,7 @@ export const BidForm: FC<Props> = ({ auctionPda, auction, onBidPlaced }) => {
                 : "Seal Bid in TEE 🔒"}
           </button>
 
-          <p className="text-[10px] text-gray-600 text-center">
+          <p className="text-[10px] text-center" style={{ color: "var(--text-dim)" }}>
             Two transactions: escrow top-up (L1) + sealed bid (TEE)
           </p>
         </div>

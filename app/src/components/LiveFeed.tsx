@@ -15,20 +15,20 @@ const EVENT_ICONS: Record<AuctionEvent["type"], string> = {
   bid_count: "📊",
 };
 
-const EVENT_COLORS: Record<AuctionEvent["type"], string> = {
-  bid_placed: "border-l-yellow-400 bg-yellow-400/5",
-  auction_closed: "border-l-green-400 bg-green-400/5",
-  auction_settled: "border-l-purple-400 bg-purple-400/5",
-  bid_count: "border-l-blue-400 bg-blue-400/5",
+const EVENT_BORDER_COLORS: Record<AuctionEvent["type"], string> = {
+  bid_placed: "rgba(136,51,255,0.6)",
+  auction_closed: "rgba(74,222,128,0.6)",
+  auction_settled: "rgba(204,51,255,0.6)",
+  bid_count: "rgba(51,85,255,0.6)",
 };
 
-/**
- * Real-time transaction feed from the Private Ephemeral Rollup.
- *
- * Events come from the PER WebSocket (auction account change subscription).
- * Key property: bid events show that a bid was received but NEVER show amounts.
- * The amounts stay inside the TEE until close_auction reveals the winner.
- */
+const EVENT_BG_COLORS: Record<AuctionEvent["type"], string> = {
+  bid_placed: "rgba(136,51,255,0.06)",
+  auction_closed: "rgba(74,222,128,0.06)",
+  auction_settled: "rgba(204,51,255,0.06)",
+  bid_count: "rgba(51,85,255,0.06)",
+};
+
 export const LiveFeed: FC<Props> = ({ events }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -37,28 +37,31 @@ export const LiveFeed: FC<Props> = ({ events }) => {
   }, [events]);
 
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-700 overflow-hidden">
+    <div className="card overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
+      <div
+        className="flex items-center justify-between px-5 py-3"
+        style={{ borderBottom: "1px solid var(--border)", background: "var(--surface-hover)" }}
+      >
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: "var(--accent-violet)" }} />
+            <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: "var(--accent-violet)" }} />
           </span>
-          <span className="text-sm font-medium text-gray-200">
+          <span className="text-sm font-semibold text-white">
             Live Transaction Feed
           </span>
         </div>
-        <div className="flex items-center gap-1 text-xs text-gray-500">
-          <span className="w-2 h-2 bg-teal-500 rounded-full" />
+        <div className="flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-dim)" }}>
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--accent-violet)" }} />
           via Private Ephemeral Rollup
         </div>
       </div>
 
       {/* Feed */}
-      <div className="h-72 overflow-y-auto p-3 space-y-2 font-mono text-xs">
+      <div className="h-72 overflow-y-auto p-4 space-y-2 mono text-xs">
         {events.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-600 gap-2">
+          <div className="flex flex-col items-center justify-center h-full gap-2" style={{ color: "var(--text-dim)" }}>
             <span className="text-2xl">⛓️</span>
             <span>Waiting for events from the TEE...</span>
           </div>
@@ -66,7 +69,11 @@ export const LiveFeed: FC<Props> = ({ events }) => {
           events.map((event, i) => (
             <div
               key={i}
-              className={`border-l-2 pl-3 pr-2 py-2 rounded-r-lg ${EVENT_COLORS[event.type]}`}
+              className="pl-3 pr-3 py-2.5 rounded-lg"
+              style={{
+                borderLeft: `2px solid ${EVENT_BORDER_COLORS[event.type]}`,
+                background: EVENT_BG_COLORS[event.type],
+              }}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
@@ -74,39 +81,39 @@ export const LiveFeed: FC<Props> = ({ events }) => {
                     {EVENT_ICONS[event.type]}
                   </span>
                   <div className="min-w-0">
-                    <div className="text-gray-200 truncate">
+                    <div className="text-white truncate">
                       {String(event.data.message ?? event.type)}
                     </div>
                     {event.type === "bid_placed" && (
-                      <div className="text-gray-500 text-[10px] mt-0.5">
+                      <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>
                         bid #{event.data.bidCount as number} •{" "}
-                        <span className="text-yellow-600">
+                        <span style={{ color: "var(--accent-violet)" }}>
                           amount sealed in TEE
                         </span>
                       </div>
                     )}
                     {event.type === "auction_closed" && (
                       event.data.winner ? (
-                        <div className="text-green-400 text-[10px] mt-0.5">
+                        <div className="text-[10px] mt-0.5" style={{ color: "#4ade80" }}>
                           winner:{" "}
                           {String(event.data.winner).slice(0, 8)}...
                           {"  "}•{"  "}
                           {(Number(event.data.winningBid) / 1e9).toFixed(4)} SOL
                         </div>
                       ) : (
-                        <div className="text-gray-500 text-[10px] mt-0.5">
+                        <div className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>
                           no valid bids above reserve price
                         </div>
                       )
                     )}
                     {!!event.data.slot && (
-                      <div className="text-gray-600 text-[10px]">
+                      <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>
                         slot {String(event.data.slot)}
                       </div>
                     )}
                   </div>
                 </div>
-                <span className="text-gray-600 shrink-0">
+                <span className="shrink-0" style={{ color: "var(--text-dim)" }}>
                   {formatDistanceToNow(event.timestamp, { addSuffix: true })}
                 </span>
               </div>
@@ -117,8 +124,8 @@ export const LiveFeed: FC<Props> = ({ events }) => {
       </div>
 
       {/* Footer */}
-      <div className="px-4 py-2 border-t border-gray-700 bg-gray-800/50">
-        <p className="text-[10px] text-gray-600">
+      <div className="px-5 py-2.5" style={{ borderTop: "1px solid var(--border)", background: "var(--surface-hover)" }}>
+        <p className="text-[10px]" style={{ color: "var(--text-dim)" }}>
           Bid amounts are sealed inside the TEE (Intel TDX). Only existence of
           bids is public. Winner is computed by the enclave and committed to L1.
         </p>

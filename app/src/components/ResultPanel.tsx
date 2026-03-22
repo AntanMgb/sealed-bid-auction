@@ -15,14 +15,6 @@ interface Props {
   commitTxSig: string | null;
 }
 
-/**
- * Shows the TEE-computed result after close_auction commits to L1.
- *
- * This is the "committed onchain with a verifiable result" panel:
- *   - Winner and winning bid are on L1 (publicly readable)
- *   - The commit transaction was signed by the TEE validator
- *   - The TEE validator's key is publicly attested to Intel TDX
- */
 export const ResultPanel: FC<Props> = ({
   auctionPda,
   auction,
@@ -58,70 +50,70 @@ export const ResultPanel: FC<Props> = ({
   if (!isClosed) return null;
 
   return (
-    <div className="bg-gray-900 rounded-xl border border-green-700 overflow-hidden">
+    <div className="card overflow-hidden" style={{ borderColor: "rgba(74,222,128,0.3)" }}>
       {/* Header */}
-      <div className="bg-green-900/40 border-b border-green-800 px-5 py-4">
+      <div className="px-6 py-4" style={{ background: "rgba(74,222,128,0.08)", borderBottom: "1px solid rgba(74,222,128,0.15)" }}>
         <div className="flex items-center gap-3">
           <span className="text-2xl">✅</span>
           <div>
-            <div className="font-bold text-green-400 text-lg">
+            <div className="font-bold text-lg" style={{ color: "#4ade80" }}>
               Winner Computed in TEE
             </div>
-            <div className="text-xs text-green-600">
+            <div className="text-xs" style={{ color: "rgba(74,222,128,0.6)" }}>
               Result committed to Solana L1 with Intel TDX attestation
             </div>
           </div>
         </div>
       </div>
 
-      <div className="p-5 space-y-4">
+      <div className="p-6 space-y-5">
         {/* Result */}
         {hasWinner ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Winner</span>
-              <span className="text-white font-mono">
+              <span style={{ color: "var(--text-dim)" }}>Winner</span>
+              <span className="text-white mono">
                 {auction.winner.toBase58().slice(0, 12)}...
                 {auction.winner.toBase58().slice(-4)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Winning Bid</span>
-              <span className="text-yellow-400 font-bold">
+              <span style={{ color: "var(--text-dim)" }}>Winning Bid</span>
+              <span className="font-bold" style={{ color: "var(--accent-amber)" }}>
                 {(auction.winningBid.toNumber() / 1e9).toFixed(4)} SOL
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Total Bids</span>
+              <span style={{ color: "var(--text-dim)" }}>Total Bids</span>
               <span className="text-white">{auction.bidCount}</span>
             </div>
           </div>
         ) : (
-          <div className="text-center py-3 text-gray-500">
+          <div className="text-center py-3" style={{ color: "var(--text-dim)" }}>
             No valid bids above reserve price — auction failed.
           </div>
         )}
 
-        <hr className="border-gray-700" />
+        <hr style={{ borderColor: "var(--border)" }} />
 
         {/* TEE Proof */}
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        <div className="space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-dim)" }}>
             Verifiable Proof
           </div>
 
-          <div className="bg-gray-800 rounded-lg p-3 space-y-2 text-xs font-mono">
+          <div className="rounded-xl p-4 space-y-2 text-xs mono" style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}>
             <div className="flex justify-between gap-2">
-              <span className="text-gray-500 shrink-0">TEE Validator</span>
-              <span className="text-teal-400 text-right break-all">
+              <span style={{ color: "var(--text-dim)" }}>TEE Validator</span>
+              <span className="text-right break-all" style={{ color: "var(--accent-violet)" }}>
                 {TEE_VALIDATOR_DEVNET.toBase58()}
               </span>
             </div>
 
             {commitTxSig && (
               <div className="flex justify-between gap-2">
-                <span className="text-gray-500 shrink-0">Commit TX</span>
-                <span className="text-blue-400 text-right break-all">
+                <span style={{ color: "var(--text-dim)" }}>Commit TX</span>
+                <span className="text-right break-all" style={{ color: "var(--accent-blue)" }}>
                   {commitTxSig}
                 </span>
               </div>
@@ -130,12 +122,12 @@ export const ResultPanel: FC<Props> = ({
             {attestation && (
               <>
                 <div className="flex justify-between gap-2">
-                  <span className="text-gray-500 shrink-0">TEE Provider</span>
+                  <span style={{ color: "var(--text-dim)" }}>TEE Provider</span>
                   <span className="text-white">{attestation.provider}</span>
                 </div>
                 <div className="flex justify-between gap-2">
-                  <span className="text-gray-500 shrink-0">Verified</span>
-                  <span className="text-green-400">
+                  <span style={{ color: "var(--text-dim)" }}>Verified</span>
+                  <span style={{ color: "#4ade80" }}>
                     {new Date(attestation.verifiedAt).toISOString()}
                   </span>
                 </div>
@@ -143,7 +135,7 @@ export const ResultPanel: FC<Props> = ({
             )}
           </div>
 
-          <p className="text-[10px] text-gray-600">
+          <p className="text-[10px]" style={{ color: "var(--text-dim)" }}>
             The commit transaction above was signed by the TEE validator, whose
             public key is attested to run inside an Intel TDX Trust Domain.
             This proves the winner was computed fairly — no floor manipulation,
@@ -155,14 +147,14 @@ export const ResultPanel: FC<Props> = ({
         {hasWinner && !isSettled && isWinner && (
           <button
             onClick={handleSettle}
-            className="w-full py-2.5 rounded-lg font-semibold text-sm bg-green-600 hover:bg-green-500 text-white transition-all"
+            className="btn-primary w-full"
           >
             Settle & Pay {(auction.winningBid.toNumber() / 1e9).toFixed(4)} SOL
           </button>
         )}
 
         {isSettled && (
-          <div className="text-center text-green-400 text-sm font-semibold">
+          <div className="text-center text-sm font-bold" style={{ color: "#4ade80" }}>
             🏆 Auction fully settled
           </div>
         )}

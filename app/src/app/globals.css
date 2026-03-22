@@ -2,26 +2,187 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Unbounded:wght@300;500;700;900&family=Lexend:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 10, 10, 15;
-  --background-end-rgb: 10, 10, 15;
+  --bg: #050508;
+  --surface: rgba(12, 12, 18, 0.85);
+  --surface-hover: rgba(20, 18, 30, 0.95);
+  --surface-solid: #0c0c12;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.15);
+  --text: #ffffff;
+  --text-dim: rgba(255, 255, 255, 0.4);
+  --text-mid: rgba(255, 255, 255, 0.6);
+  --accent-blue: #3355ff;
+  --accent-violet: #8833ff;
+  --accent-magenta: #cc33ff;
+  --accent-pink: #ff3388;
+  --accent-amber: #ffaa22;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    rgb(var(--background-end-rgb))
-  )
-  rgb(var(--background-start-rgb));
+  font-family: 'Lexend', sans-serif;
+  background: var(--bg);
+  color: var(--text);
 }
 
-/* Wallet adapter dark theme override */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Unbounded', sans-serif;
+}
+
+/* Wallet adapter overrides */
 .wallet-adapter-button {
-  background-color: #0d9488 !important;
+  background: white !important;
+  color: black !important;
+  border-radius: 100px !important;
+  font-family: 'Lexend', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  padding: 8px 20px !important;
+  transition: all 0.2s !important;
+}
+.wallet-adapter-button:hover {
+  opacity: 0.85 !important;
 }
 .wallet-adapter-modal-wrapper {
-  background: #111827 !important;
+  background: var(--surface-solid) !important;
+  border: 1px solid var(--border) !important;
+  font-family: 'Lexend', sans-serif !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+/* Card base */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+}
+.card:hover {
+  border-color: var(--border-hover);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(160deg, #fff 30%, rgba(255,255,255,0.6) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Accent gradient */
+.accent-gradient {
+  background: linear-gradient(135deg, var(--accent-violet), var(--accent-magenta));
+}
+
+/* Pill badge */
+.pill {
+  background: linear-gradient(135deg, rgba(136,51,255,0.15), rgba(204,51,255,0.1));
+  border: 1px solid rgba(255,255,255,0.14);
+  backdrop-filter: blur(8px);
+  border-radius: 100px;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+/* Primary button */
+.btn-primary {
+  background: white;
+  color: black;
+  border-radius: 100px;
+  font-weight: 600;
+  padding: 10px 24px;
+  font-size: 14px;
+  transition: all 0.2s;
+  border: none;
+}
+.btn-primary:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+.btn-primary:disabled {
+  opacity: 0.3;
+  transform: none;
+}
+
+/* Secondary button */
+.btn-secondary {
+  background: transparent;
+  color: white;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-weight: 500;
+  padding: 10px 24px;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+.btn-secondary:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: var(--border-hover);
+}
+
+/* Accent button */
+.btn-accent {
+  background: linear-gradient(135deg, var(--accent-violet), var(--accent-magenta));
+  color: white;
+  border-radius: 100px;
+  font-weight: 600;
+  padding: 10px 24px;
+  font-size: 14px;
+  transition: all 0.2s;
+  border: none;
+}
+.btn-accent:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+.btn-accent:disabled {
+  opacity: 0.3;
+  transform: none;
+}
+
+/* Input */
+.input {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  color: white;
+  font-size: 14px;
+  font-family: 'Lexend', sans-serif;
+  transition: border-color 0.2s;
+  outline: none;
+  width: 100%;
+}
+.input:focus {
+  border-color: var(--accent-violet);
+}
+.input::placeholder {
+  color: var(--text-dim);
+}
+
+/* Glow animation */
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(136,51,255,0.15); }
+  50% { box-shadow: 0 0 40px rgba(136,51,255,0.3); }
+}
+.glow {
+  animation: glow 3s ease-in-out infinite;
+}
+
+/* Mono text */
+.mono {
+  font-family: 'Fira Code', monospace;
 }
