@@ -1,31 +1,73 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { AnchorProvider } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
 import { CreateAuction } from "@/components/CreateAuction";
 import { AuctionRoom } from "@/components/AuctionRoom";
+import { getProgram, fetchAllAuctions, AuctionState } from "@/lib/program";
+import { getDevnetConnection } from "@/lib/magicblock";
 
 export default function Home() {
-  const { connected } = useWallet();
+  const { connected, publicKey, signTransaction } = useWallet();
   const [auctionPda, setAuctionPda] = useState<string | null>(null);
   const [joinInput, setJoinInput] = useState("");
-  const [activeView, setActiveView] = useState<"create" | "join">("create");
+  const [activeView, setActiveView] = useState<"create" | "join" | "browse">("create");
+  const [auctions, setAuctions] = useState<{ publicKey: PublicKey; account: AuctionState }[]>([]);
+  const [loadingAuctions, setLoadingAuctions] = useState(false);
+
+  const loadAuctions = useCallback(async () => {
+    if (!publicKey || !signTransaction) return;
+    setLoadingAuctions(true);
+    try {
+      const conn = getDevnetConnection();
+      const provider = new AnchorProvider(
+        conn,
+        { publicKey, signTransaction, signAllTransactions: async (t) => t },
+        { commitment: "confirmed" }
+      );
+      const program = getProgram(provider);
+      const all = await fetchAllAuctions(program);
+      setAuctions(all);
+    } catch (err) {
+      console.error("Failed to fetch auctions:", err);
+    } finally {
+      setLoadingAuctions(false);
+    }
+  }, [publicKey, signTransaction]);
+
+  useEffect(() => {
+    if (activeView === "browse" && connected) {
+      loadAuctions();
+    }
+  }, [activeView, connected, loadAuctions]);
+
+  function getStatusLabel(status: AuctionState["status"]) {
+    if ("settled" in status) return { label: "Settled", color: "text-purple-400 bg-purple-900/50 border-purple-700" };
+    if ("closed" in status) return { label: "Closed", color: "text-green-400 bg-green-900/50 border-green-700" };
+    if ("delegated" in status) return { label: "Live in TEE", color: "text-teal-400 bg-teal-900/50 border-teal-700" };
+    return { label: "Created", color: "text-blue-400 bg-blue-900/50 border-blue-700" };
+  }
 
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       {/* Nav */}
       <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <button
+            onClick={() => setAuctionPda(null)}
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          >
             <span className="text-xl">🔒</span>
-            <div>
+            <div className="text-left">
               <div className="font-bold text-white">Sealed-Bid Auction</div>
               <div className="text-[10px] text-gray-500">
                 Powered by MagicBlock Private ER (Intel TDX)
               </div>
             </div>
-          </div>
+          </button>
           <WalletMultiButton />
         </div>
       </header>
@@ -75,12 +117,20 @@ export default function Home() {
             <WalletMultiButton />
           </div>
         ) : auctionPda ? (
-          <AuctionRoom auctionPdaStr={auctionPda} />
+          <div>
+            <button
+              onClick={() => setAuctionPda(null)}
+              className="flex items-center gap-2 text-sm text-gray-400 hover:text-white mb-4 transition-colors"
+            >
+              <span>←</span> Back to all auctions
+            </button>
+            <AuctionRoom auctionPdaStr={auctionPda} />
+          </div>
         ) : (
           <div className="max-w-xl mx-auto">
             {/* Tab switcher */}
             <div className="flex bg-gray-800 rounded-xl p-1 mb-5">
-              {(["create", "join"] as const).map((v) => (
+              {(["create", "join", "browse"] as const).map((v) => (
                 <button
                   key={v}
                   onClick={() => setActiveView(v)}
@@ -90,14 +140,14 @@ export default function Home() {
                       : "text-gray-400 hover:text-white"
                   }`}
                 >
-                  {v === "create" ? "Create Auction" : "Join Auction"}
+                  {v === "create" ? "Create Auction" : v === "join" ? "Join Auction" : "Browse All"}
                 </button>
               ))}
             </div>
 
             {activeView === "create" ? (
               <CreateAuction onCreated={setAuctionPda} />
-            ) : (
+            ) : activeView === "join" ? (
               <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
                 <h2 className="text-lg font-semibold text-white mb-4">
                   Join Existing Auction
@@ -119,52 +169,283 @@ export default function Home() {
                   View Auction
                 </button>
               </div>
-            )}
+            ) : (
+              /* Browse All Auctions */
+              <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-white">All Auctions</h2>
+                  <button
+                    onClick={loadAuctions}
+                    disabled={loadingAuctions}
+                    className="text-xs text-teal-400 hover:text-teal-300 disabled:opacity-50"
+                  >
+                    {loadingAuctions ? "Loading..." : "Refresh"}
+                  </button>
+                </div>
 
-            {/* Architecture diagram */}
-            <div className="mt-6 bg-gray-900 rounded-xl border border-gray-700 p-5">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                How it works
+                {loadingAuctions && auctions.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="text-2xl mb-2">⏳</div>
+                    Loading auctions from Solana...
+                  </div>
+                ) : auctions.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="text-2xl mb-2">📭</div>
+                    No auctions found on-chain yet. Create one!
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {auctions.map((a) => {
+                      const s = getStatusLabel(a.account.status);
+                      const endMs = a.account.endTime.toNumber() * 1000;
+                      const isExpired = Date.now() >= endMs;
+                      const isActive = !isExpired && ("delegated" in a.account.status || "created" in a.account.status);
+                      return (
+                        <button
+                          key={a.publicKey.toBase58()}
+                          onClick={() => setAuctionPda(a.publicKey.toBase58())}
+                          className="w-full text-left bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-gray-600 rounded-lg p-4 transition-all"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-white truncate">
+                                {a.account.title || "Untitled Auction"}
+                              </div>
+                              <div className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                {a.publicKey.toBase58().slice(0, 16)}...
+                              </div>
+                            </div>
+                            <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full border ${s.color}`}>
+                              {s.label}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                            <span>Reserve: {(a.account.reservePrice.toNumber() / 1e9).toFixed(3)} SOL</span>
+                            <span>Bids: {a.account.bidCount}</span>
+                            {isActive && (
+                              <span className="text-teal-400">
+                                Active
+                              </span>
+                            )}
+                            {isExpired && !("closed" in a.account.status) && !("settled" in a.account.status) && (
+                              <span className="text-orange-400">Expired</span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <div className="space-y-2.5 text-sm">
+            )}
+          </div>
+        )}
+
+        {/* README / How it Works — shown on home page */}
+        {!auctionPda && connected && (
+          <div className="max-w-3xl mx-auto mt-12 space-y-8 pb-16">
+            {/* Architecture Overview */}
+            <section className="bg-gray-900 rounded-xl border border-gray-700 p-6">
+              <h2 className="text-xl font-bold text-white mb-4">How It Works</h2>
+              <div className="space-y-3 text-sm">
                 {[
                   {
+                    num: "1",
                     layer: "L1",
                     color: "bg-blue-600",
-                    step: "Seller creates auction + delegates to TEE",
+                    title: "Create Auction",
+                    desc: "Seller creates an auction on Solana L1 specifying the item, reserve price, and duration. The auction PDA is initialized on-chain.",
                   },
                   {
-                    layer: "TEE",
-                    color: "bg-teal-600",
-                    step: "Bidders submit sealed bids (amounts hidden in Intel TDX)",
-                  },
-                  {
-                    layer: "TEE",
-                    color: "bg-teal-600",
-                    step: "Winner computed inside enclave — zero info leak",
-                  },
-                  {
+                    num: "2",
                     layer: "L1",
                     color: "bg-blue-600",
-                    step: "Result committed with TEE attestation — anyone can verify",
+                    title: "Delegate to TEE",
+                    desc: "The auction account is delegated to MagicBlock's Private Ephemeral Rollup — an ER running inside an Intel TDX Trusted Execution Environment. From this point, the TEE controls the auction state.",
                   },
                   {
+                    num: "3",
+                    layer: "TEE",
+                    color: "bg-teal-600",
+                    title: "Submit Sealed Bids",
+                    desc: "Bidders authenticate with the TEE and submit bids directly into the enclave. Bid amounts are never visible on L1 or in any public state. Only the existence of a bid (not the amount) is publicly observable.",
+                  },
+                  {
+                    num: "4",
+                    layer: "TEE",
+                    color: "bg-teal-600",
+                    title: "Winner Computation",
+                    desc: "When the auction ends, the TEE reads all sealed bids inside the enclave, determines the highest bidder, and commits the result back to Solana L1 with an Intel TDX attestation signature.",
+                  },
+                  {
+                    num: "5",
                     layer: "L1",
                     color: "bg-purple-600",
-                    step: "Winner pays and claims the item",
+                    title: "Settlement",
+                    desc: "The winner pays the winning bid amount on L1. In production, the escrowed NFT/token is atomically transferred to the winner in the same transaction.",
                   },
-                ].map((s, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <span
-                      className={`${s.color} text-white text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0`}
-                    >
-                      {s.layer}
-                    </span>
-                    <span className="text-gray-300">{s.step}</span>
+                ].map((s) => (
+                  <div key={s.num} className="flex gap-4">
+                    <div className="shrink-0 flex flex-col items-center">
+                      <span className="w-7 h-7 rounded-full bg-gray-800 border border-gray-600 flex items-center justify-center text-xs font-bold text-white">
+                        {s.num}
+                      </span>
+                      {s.num !== "5" && <div className="w-px h-full bg-gray-700 mt-1" />}
+                    </div>
+                    <div className="pb-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`${s.color} text-white text-[10px] font-mono px-1.5 py-0.5 rounded`}>
+                          {s.layer}
+                        </span>
+                        <span className="font-semibold text-white">{s.title}</span>
+                      </div>
+                      <p className="text-gray-400 text-sm leading-relaxed">{s.desc}</p>
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
+
+            {/* What is PER */}
+            <section className="bg-gray-900 rounded-xl border border-gray-700 p-6">
+              <h2 className="text-xl font-bold text-white mb-4">
+                What are Private Ephemeral Rollups (PER)?
+              </h2>
+              <div className="text-sm text-gray-400 space-y-3 leading-relaxed">
+                <p>
+                  <strong className="text-white">Private Ephemeral Rollups</strong> are a novel primitive by{" "}
+                  <strong className="text-teal-400">MagicBlock</strong> that combines Ephemeral Rollups with{" "}
+                  <strong className="text-white">Intel TDX Trusted Execution Environments</strong>.
+                </p>
+                <p>
+                  Standard Ephemeral Rollups (ER) accelerate Solana programs by temporarily "delegating" on-chain accounts
+                  to a high-performance rollup. The ER processes transactions at high speed, then commits
+                  results back to Solana L1 — all without modifying the program itself.
+                </p>
+                <p>
+                  <strong className="text-white">Private</strong> ERs go further: the rollup runs inside an Intel TDX
+                  Trust Domain — a hardware-level secure enclave. This means:
+                </p>
+                <ul className="list-none space-y-2 ml-2">
+                  <li className="flex items-start gap-2">
+                    <span className="text-teal-400 mt-0.5">→</span>
+                    <span><strong className="text-white">Data privacy:</strong> Account state inside the TEE cannot be read by anyone — not even the node operator</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-teal-400 mt-0.5">→</span>
+                    <span><strong className="text-white">Verifiable computation:</strong> The TEE's public key is attested by Intel — anyone can verify the result was computed inside a genuine TDX enclave</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-teal-400 mt-0.5">→</span>
+                    <span><strong className="text-white">Same Solana program:</strong> No separate smart contracts needed — your existing Anchor program runs as-is on the PER</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-teal-400 mt-0.5">→</span>
+                    <span><strong className="text-white">Composable with L1:</strong> Results are committed back to Solana with full settlement guarantees</span>
+                  </li>
+                </ul>
+              </div>
+            </section>
+
+            {/* Why Sealed-Bid Auctions */}
+            <section className="bg-gray-900 rounded-xl border border-gray-700 p-6">
+              <h2 className="text-xl font-bold text-white mb-4">
+                Why Sealed-Bid Auctions Need TEE
+              </h2>
+              <div className="text-sm text-gray-400 space-y-3 leading-relaxed">
+                <p>
+                  In a traditional on-chain auction, all bids are public. This creates problems:
+                </p>
+                <ul className="list-none space-y-2 ml-2">
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-0.5">✗</span>
+                    <span><strong className="text-white">Front-running:</strong> Validators or MEV bots can see pending bids and outbid them</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-0.5">✗</span>
+                    <span><strong className="text-white">Bid sniping:</strong> Bidders wait until the last second, watching others' bids</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-400 mt-0.5">✗</span>
+                    <span><strong className="text-white">Floor manipulation:</strong> Sellers can create fake bids to drive up the price</span>
+                  </li>
+                </ul>
+                <p>
+                  With <strong className="text-teal-400">MagicBlock PER</strong>, bid amounts are sent directly to the
+                  Intel TDX enclave and never appear in any public state. The TEE computes the winner honestly
+                  and commits only the final result — with a cryptographic attestation proving fair computation.
+                </p>
+              </div>
+            </section>
+
+            {/* Use Cases */}
+            <section className="bg-gray-900 rounded-xl border border-gray-700 p-6">
+              <h2 className="text-xl font-bold text-white mb-4">Use Cases</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  {
+                    icon: "🎨",
+                    title: "NFT Auctions",
+                    desc: "Sell NFTs via sealed-bid auction — no front-running, no sniping. The NFT is escrowed in the program and atomically transferred to the winner.",
+                  },
+                  {
+                    icon: "🪙",
+                    title: "Token Sales",
+                    desc: "Fair price discovery for token launches. Bidders submit private valuations, ensuring the market price reflects true demand.",
+                  },
+                  {
+                    icon: "🏛️",
+                    title: "Governance Seats",
+                    desc: "DAOs can auction governance seats or committee positions. Sealed bids prevent strategic underbidding and ensure fair representation.",
+                  },
+                ].map((uc) => (
+                  <div key={uc.title} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <div className="text-2xl mb-2">{uc.icon}</div>
+                    <div className="font-semibold text-white text-sm mb-1">{uc.title}</div>
+                    <p className="text-xs text-gray-400 leading-relaxed">{uc.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Tech Stack */}
+            <section className="bg-gray-900 rounded-xl border border-gray-700 p-6">
+              <h2 className="text-xl font-bold text-white mb-4">Technology Stack</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { name: "Solana", desc: "L1 Settlement" },
+                  { name: "Anchor", desc: "Program Framework" },
+                  { name: "MagicBlock", desc: "Private ER Engine" },
+                  { name: "Intel TDX", desc: "Hardware TEE" },
+                  { name: "Next.js", desc: "Frontend" },
+                  { name: "Phantom", desc: "Wallet Adapter" },
+                  { name: "Borsh", desc: "Serialization" },
+                  { name: "Rust", desc: "On-chain Program" },
+                ].map((t) => (
+                  <div key={t.name} className="bg-gray-800 rounded-lg p-3 border border-gray-700 text-center">
+                    <div className="font-semibold text-white text-sm">{t.name}</div>
+                    <div className="text-[10px] text-gray-500">{t.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* MagicBlock Blitz Hackathon */}
+            <section className="bg-gray-900 rounded-xl border border-teal-800 p-6 text-center">
+              <div className="text-xs text-teal-500 uppercase tracking-wider font-semibold mb-2">
+                Built for
+              </div>
+              <div className="text-xl font-bold text-white mb-1">
+                MagicBlock Solana Blitz Hackathon V2
+              </div>
+              <div className="text-sm text-gray-400">
+                March 2026 — Private Ephemeral Rollups Track
+              </div>
+              <div className="mt-3 text-xs text-gray-500">
+                Program ID:{" "}
+                <span className="font-mono text-gray-400">5bnJuoZoBWCURr3hh3qYsBiD9jiQiL5vbMXTJS5VFXVy</span>
+              </div>
+            </section>
           </div>
         )}
       </div>

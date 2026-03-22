@@ -10,12 +10,19 @@ interface Props {
   onCreated: (auctionPda: string) => void;
 }
 
+const AUCTION_TYPES = [
+  { id: "nft", icon: "🎨", label: "NFT", desc: "Auction a single NFT" },
+  { id: "token", icon: "🪙", label: "Token Sale", desc: "Fair price discovery" },
+  { id: "governance", icon: "🏛️", label: "Governance Seat", desc: "DAO seat auction" },
+] as const;
+
 export const CreateAuction: FC<Props> = ({ onCreated }) => {
   const { publicKey, signTransaction } = useWallet();
 
   const [title, setTitle] = useState("");
   const [reserve, setReserve] = useState("0.1");
-  const [duration, setDuration] = useState("300"); // seconds
+  const [duration, setDuration] = useState("300");
+  const [auctionType, setAuctionType] = useState<string>("nft");
   const [step, setStep] = useState<"idle" | "creating" | "delegating" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [auctionPda, setAuctionPda] = useState<string | null>(null);
@@ -23,6 +30,12 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
   async function handleCreate() {
     if (!publicKey || !signTransaction) return;
     setError(null);
+
+    const reserveNum = parseFloat(reserve);
+    if (isNaN(reserveNum) || reserveNum <= 0) {
+      setError("Enter a valid reserve price");
+      return;
+    }
 
     try {
       const devnetConnection = getDevnetConnection();
@@ -33,7 +46,7 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
       );
       const program = getProgram(provider);
       const auctionId = new BN(Date.now());
-      const reserveLamports = new BN(Math.floor(parseFloat(reserve) * 1e9));
+      const reserveLamports = new BN(Math.floor(reserveNum * 1e9));
       const durationSec = new BN(parseInt(duration));
 
       // Step 1: Create on L1
@@ -70,12 +83,40 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
       <h2 className="text-lg font-semibold text-white mb-4">Create Auction</h2>
 
       <div className="space-y-3">
+        {/* Auction Type Selector */}
+        <div>
+          <label className="text-xs text-gray-400 block mb-2">Auction Type</label>
+          <div className="grid grid-cols-3 gap-2">
+            {AUCTION_TYPES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setAuctionType(t.id)}
+                className={`p-3 rounded-lg border text-center transition-all ${
+                  auctionType === t.id
+                    ? "bg-teal-900/30 border-teal-600 text-white"
+                    : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600"
+                }`}
+              >
+                <div className="text-xl mb-1">{t.icon}</div>
+                <div className="text-xs font-semibold">{t.label}</div>
+                <div className="text-[10px] text-gray-500 mt-0.5">{t.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div>
           <label className="text-xs text-gray-400 block mb-1">Title</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Rare NFT Drop #001"
+            placeholder={
+              auctionType === "nft"
+                ? "e.g. Rare NFT Drop #001"
+                : auctionType === "token"
+                  ? "e.g. TOKEN Fair Launch"
+                  : "e.g. DAO Council Seat #3"
+            }
             className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500"
           />
         </div>
@@ -84,10 +125,14 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
           <div>
             <label className="text-xs text-gray-400 block mb-1">Reserve Price (SOL)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={reserve}
-              onChange={(e) => setReserve(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value.replace(",", ".");
+                if (/^\d*\.?\d*$/.test(v)) setReserve(v);
+              }}
+              placeholder="0.1"
               className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500"
             />
           </div>

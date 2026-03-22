@@ -355,3 +355,36 @@ export interface AuctionState {
   bump: number;
   bidders: PublicKey[];
 }
+
+/** Fetch all auction accounts from L1 */
+export async function fetchAllAuctions(
+  program: Program
+): Promise<{ publicKey: PublicKey; account: AuctionState }[]> {
+  try {
+    const all = await (program.account as any).auction.all();
+    return all.map((a: any) => ({
+      publicKey: a.publicKey,
+      account: a.account as AuctionState,
+    }));
+  } catch {
+    // Fallback: fetch raw program accounts and decode manually
+    try {
+      const conn = program.provider.connection;
+      const accounts = await conn.getProgramAccounts(PROGRAM_ID, {
+        filters: [{ dataSize: 3340 }], // approximate Auction account size
+      });
+      const results: { publicKey: PublicKey; account: AuctionState }[] = [];
+      for (const { pubkey, account } of accounts) {
+        try {
+          const decoded = program.coder.accounts.decode("auction", account.data);
+          results.push({ publicKey: pubkey, account: decoded as unknown as AuctionState });
+        } catch {
+          // skip non-auction accounts
+        }
+      }
+      return results;
+    } catch {
+      return [];
+    }
+  }
+}
