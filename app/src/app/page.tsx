@@ -39,14 +39,32 @@ export default function Home() {
   const [activeView, setActiveView] = useState<"create" | "join" | "browse">("create");
   const [auctions, setAuctions] = useState<{ publicKey: PublicKey; account: AuctionState }[]>([]);
   const [loadingAuctions, setLoadingAuctions] = useState(false);
+  const [myAuctions, setMyAuctions] = useState<{ pda: string; title: string; createdAt: number }[]>([]);
 
-  // Save auction PDA to localStorage registry (called after creation)
-  function registerAuction(pdaStr: string) {
+  // Load my auctions from localStorage on mount
+  useEffect(() => {
     try {
-      const existing: string[] = JSON.parse(localStorage.getItem("auction-registry") || "[]");
-      if (!existing.includes(pdaStr)) {
-        existing.push(pdaStr);
-        localStorage.setItem("auction-registry", JSON.stringify(existing));
+      const saved = JSON.parse(localStorage.getItem("my-auctions") || "[]");
+      setMyAuctions(saved);
+    } catch {}
+  }, []);
+
+  // Save auction to "My Auctions" in localStorage
+  function registerAuction(pdaStr: string, title?: string) {
+    try {
+      const existing: { pda: string; title: string; createdAt: number }[] =
+        JSON.parse(localStorage.getItem("my-auctions") || "[]");
+      if (!existing.some((a) => a.pda === pdaStr)) {
+        const entry = { pda: pdaStr, title: title || "Untitled", createdAt: Date.now() };
+        const updated = [entry, ...existing];
+        localStorage.setItem("my-auctions", JSON.stringify(updated));
+        setMyAuctions(updated);
+      }
+      // Also save to registry for browse
+      const registry: string[] = JSON.parse(localStorage.getItem("auction-registry") || "[]");
+      if (!registry.includes(pdaStr)) {
+        registry.push(pdaStr);
+        localStorage.setItem("auction-registry", JSON.stringify(registry));
       }
     } catch {}
   }
@@ -73,7 +91,7 @@ export default function Home() {
       const registryResults: { publicKey: PublicKey; account: AuctionState }[] = [];
 
       for (const pdaStr of registry) {
-        if (l1Keys.has(pdaStr)) continue; // already have from L1
+        if (l1Keys.has(pdaStr)) continue;
         try {
           const pk = new PublicKey(pdaStr);
           const data = await fetchAuction(routerProgram, pk);
@@ -81,7 +99,6 @@ export default function Home() {
         } catch {}
       }
 
-      // Merge: registry (active) first, then L1
       setAuctions([...registryResults, ...l1Auctions]);
     } catch (err) {
       console.error("Failed to fetch auctions:", err);
@@ -198,7 +215,7 @@ export default function Home() {
             </div>
 
             {activeView === "create" ? (
-              <CreateAuction onCreated={(pda) => { registerAuction(pda); setAuctionPda(pda); }} />
+              <CreateAuction onCreated={(pda, title) => { registerAuction(pda, title); setAuctionPda(pda); }} />
             ) : activeView === "join" ? (
               <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
                 <h2 className="text-lg font-semibold text-white mb-4">
@@ -288,6 +305,33 @@ export default function Home() {
                     })}
                   </div>
                 )}
+              </div>
+            )}
+            {/* My Auctions */}
+            {myAuctions.length > 0 && (
+              <div className="bg-gray-900 rounded-xl border border-gray-700 p-5 mt-5">
+                <h2 className="text-lg font-semibold text-white mb-3">My Auctions</h2>
+                <div className="space-y-2">
+                  {myAuctions.map((a) => (
+                    <button
+                      key={a.pda}
+                      onClick={() => setAuctionPda(a.pda)}
+                      className="w-full text-left bg-gray-800 hover:bg-gray-750 border border-gray-700 hover:border-gray-600 rounded-lg p-3 transition-all"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-white text-sm truncate">{a.title}</div>
+                          <div className="text-[10px] text-gray-500 font-mono mt-0.5">
+                            {a.pda.slice(0, 20)}...
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-gray-500 shrink-0">
+                          {new Date(a.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>

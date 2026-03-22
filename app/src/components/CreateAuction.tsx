@@ -7,7 +7,7 @@ import { createAuction, delegateAuction, getAuctionPda, getProgram } from "@/lib
 import { getDevnetConnection } from "@/lib/magicblock";
 
 interface Props {
-  onCreated: (auctionPda: string) => void;
+  onCreated: (auctionPda: string, title: string) => void;
 }
 
 const AUCTION_TYPES = [
@@ -81,7 +81,7 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
 
       setAuctionPda(pdaStr);
       setStep("done");
-      onCreated(pdaStr);
+      onCreated(pdaStr, title);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed");
       setStep("error");
