@@ -56,9 +56,11 @@ export function getPermGroupPda(
 // ─── Delegation PDA Helpers ───────────────────────────────────────────────────
 
 function getDelegationPdas(accountToDelegate: PublicKey) {
+  // buffer PDA is derived from the OWNER program, not the delegation program
+  // See: delegateBufferPdaFromDelegatedAccountAndOwnerProgram in SDK
   const [buffer] = PublicKey.findProgramAddressSync(
     [Buffer.from("buffer"), accountToDelegate.toBytes()],
-    DELEGATION_PROGRAM_ID
+    PROGRAM_ID
   );
   const [delegationRecord] = PublicKey.findProgramAddressSync(
     [Buffer.from("delegation"), accountToDelegate.toBytes()],
