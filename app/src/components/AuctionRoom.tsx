@@ -238,11 +238,17 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mt-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
           <div className="rounded-xl p-4" style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}>
             <div className="text-xs" style={{ color: "var(--text-dim)" }}>Reserve Price</div>
             <div className="text-white font-bold mt-1">
               {(auction.reservePrice.toNumber() / 1e9).toFixed(3)} SOL
+            </div>
+          </div>
+          <div className="rounded-xl p-4" style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}>
+            <div className="text-xs" style={{ color: "var(--text-dim)" }}>Escrowed Tokens</div>
+            <div className="font-bold mt-1" style={{ color: "var(--accent-violet)" }}>
+              {auction.escrowAmount ? (auction.escrowAmount.toNumber() / 1e9).toLocaleString() : "—"}
             </div>
           </div>
           <div className="rounded-xl p-4" style={{ background: "var(--surface-hover)", border: "1px solid var(--border)" }}>
