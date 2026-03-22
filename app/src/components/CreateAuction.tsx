@@ -23,9 +23,22 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
   const [reserve, setReserve] = useState("0.1");
   const [duration, setDuration] = useState("300");
   const [auctionType, setAuctionType] = useState<string>("nft");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [step, setStep] = useState<"idle" | "creating" | "delegating" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [auctionPda, setAuctionPda] = useState<string | null>(null);
+
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Image must be under 2MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
 
   async function handleCreate() {
     if (!publicKey || !signTransaction) return;
@@ -59,9 +72,16 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
       setStep("delegating");
       await delegateAuction(program, publicKey, pda, auctionId);
 
-      setAuctionPda(pda.toBase58());
+      const pdaStr = pda.toBase58();
+      // Save image and auction type to localStorage for the auction room
+      if (imagePreview) {
+        try { localStorage.setItem(`auction-image-${pdaStr}`, imagePreview); } catch {}
+      }
+      try { localStorage.setItem(`auction-type-${pdaStr}`, auctionType); } catch {}
+
+      setAuctionPda(pdaStr);
       setStep("done");
-      onCreated(pda.toBase58());
+      onCreated(pdaStr);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed");
       setStep("error");
@@ -120,6 +140,40 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
             className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500"
           />
         </div>
+
+        {/* NFT Image Upload */}
+        {auctionType === "nft" && (
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">NFT Image</label>
+            {imagePreview ? (
+              <div className="relative">
+                <img
+                  src={imagePreview}
+                  alt="NFT preview"
+                  className="w-full h-48 object-cover rounded-lg border border-gray-600"
+                />
+                <button
+                  onClick={() => setImagePreview(null)}
+                  className="absolute top-2 right-2 bg-gray-900/80 text-gray-300 hover:text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center w-full h-32 bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-teal-500 transition-colors">
+                <span className="text-2xl mb-1">🖼️</span>
+                <span className="text-xs text-gray-400">Click to upload image</span>
+                <span className="text-[10px] text-gray-600 mt-0.5">PNG, JPG, GIF (max 2MB)</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div>

@@ -35,8 +35,20 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
   const [closeError, setCloseError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [knownBidders, setKnownBidders] = useState<string[]>([]);
+  const [nftImage, setNftImage] = useState<string | null>(null);
+  const [auctionTypeLabel, setAuctionTypeLabel] = useState<string | null>(null);
 
   const auctionPda = new PublicKey(auctionPdaStr);
+
+  // Load NFT image and auction type from localStorage
+  useEffect(() => {
+    try {
+      const img = localStorage.getItem(`auction-image-${auctionPdaStr}`);
+      if (img) setNftImage(img);
+      const aType = localStorage.getItem(`auction-type-${auctionPdaStr}`);
+      if (aType) setAuctionTypeLabel(aType);
+    } catch {}
+  }, [auctionPdaStr]);
 
   // Fetch auction state — try Magic Router first (routes to ER for delegated accounts),
   // fall back to devnet L1 if router fails
@@ -186,9 +198,27 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
     <div className="space-y-5">
       {/* Auction Header */}
       <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
+        {/* NFT Image */}
+        {nftImage && (
+          <div className="mb-4 rounded-lg overflow-hidden border border-gray-700">
+            <img
+              src={nftImage}
+              alt={auction.title}
+              className="w-full h-56 object-cover"
+            />
+          </div>
+        )}
+
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-white truncate">
+            <div className="flex items-center gap-2">
+              {auctionTypeLabel && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 border border-gray-600 text-gray-400">
+                  {auctionTypeLabel === "nft" ? "🎨 NFT" : auctionTypeLabel === "token" ? "🪙 Token" : "🏛️ Governance"}
+                </span>
+              )}
+            </div>
+            <h1 className="text-2xl font-bold text-white truncate mt-1">
               {auction.title}
             </h1>
             <div className="text-xs text-gray-500 mt-1 font-mono break-all">
