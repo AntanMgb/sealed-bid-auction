@@ -165,7 +165,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>
+    <main className="min-h-screen" style={{ color: "var(--text)" }}>
       {/* Nav */}
       <header className="sticky top-0 z-10 backdrop-blur-md" style={{ background: "rgba(5,5,8,0.8)", borderBottom: "1px solid var(--border)" }}>
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
