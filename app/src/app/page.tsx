@@ -141,7 +141,9 @@ export default function Home() {
     }
   }, [publicKey, signTransaction]);
 
-  // Don't auto-load on connect — user clicks "Refresh" to load
+  useEffect(() => {
+    if (connected) { loadAuctions(); }
+  }, [connected, loadAuctions]);
 
   function getStatusLabel(status: AuctionState["status"], endTime?: number) {
     if ("settled" in status) return { label: "Settled", cls: "text-[var(--accent-magenta)] border-[var(--accent-magenta)]/30 bg-[var(--accent-magenta)]/10" };
@@ -231,7 +233,7 @@ export default function Home() {
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
               {/* Left: Create Auction (wider) */}
               <div className="lg:col-span-3">
-                <CreateAuction onCreated={(pda, title) => { registerAuction(pda, title); setAuctionPda(pda); }} />
+                <CreateAuction onCreated={(pda, title) => { registerAuction(pda, title); loadAuctions(); setAuctionPda(pda); }} />
               </div>
 
               {/* Right: sidebar */}
