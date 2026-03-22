@@ -7,8 +7,8 @@ import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { CreateAuction } from "@/components/CreateAuction";
 import { AuctionRoom } from "@/components/AuctionRoom";
-import { getProgram, fetchAllAuctions, AuctionState } from "@/lib/program";
-import { getDevnetConnection } from "@/lib/magicblock";
+import { getProgram, fetchAllAuctions, fetchAuction, AuctionState } from "@/lib/program";
+import { getDevnetConnection, getMagicRouterConnection } from "@/lib/magicblock";
 
 function FaqItem({ question, children }: { question: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -40,19 +40,49 @@ export default function Home() {
   const [auctions, setAuctions] = useState<{ publicKey: PublicKey; account: AuctionState }[]>([]);
   const [loadingAuctions, setLoadingAuctions] = useState(false);
 
+  // Save auction PDA to localStorage registry (called after creation)
+  function registerAuction(pdaStr: string) {
+    try {
+      const existing: string[] = JSON.parse(localStorage.getItem("auction-registry") || "[]");
+      if (!existing.includes(pdaStr)) {
+        existing.push(pdaStr);
+        localStorage.setItem("auction-registry", JSON.stringify(existing));
+      }
+    } catch {}
+  }
+
   const loadAuctions = useCallback(async () => {
     if (!publicKey || !signTransaction) return;
     setLoadingAuctions(true);
     try {
-      const conn = getDevnetConnection();
-      const provider = new AnchorProvider(
+      const makeProvider = (conn: any) => new AnchorProvider(
         conn,
-        { publicKey, signTransaction, signAllTransactions: async (t) => t },
+        { publicKey, signTransaction, signAllTransactions: async (t: any) => t },
         { commitment: "confirmed" }
       );
-      const program = getProgram(provider);
-      const all = await fetchAllAuctions(program);
-      setAuctions(all);
+
+      // 1. Fetch L1 auctions (non-delegated: created, closed, settled)
+      const l1Program = getProgram(makeProvider(getDevnetConnection()));
+      const l1Auctions = await fetchAllAuctions(l1Program);
+
+      // 2. Fetch registry auctions via Magic Router (includes delegated/active)
+      const registry: string[] = JSON.parse(localStorage.getItem("auction-registry") || "[]");
+      const l1Keys = new Set(l1Auctions.map((a) => a.publicKey.toBase58()));
+
+      const routerProgram = getProgram(makeProvider(getMagicRouterConnection()));
+      const registryResults: { publicKey: PublicKey; account: AuctionState }[] = [];
+
+      for (const pdaStr of registry) {
+        if (l1Keys.has(pdaStr)) continue; // already have from L1
+        try {
+          const pk = new PublicKey(pdaStr);
+          const data = await fetchAuction(routerProgram, pk);
+          if (data) registryResults.push({ publicKey: pk, account: data });
+        } catch {}
+      }
+
+      // Merge: registry (active) first, then L1
+      setAuctions([...registryResults, ...l1Auctions]);
     } catch (err) {
       console.error("Failed to fetch auctions:", err);
     } finally {
@@ -168,7 +198,7 @@ export default function Home() {
             </div>
 
             {activeView === "create" ? (
-              <CreateAuction onCreated={setAuctionPda} />
+              <CreateAuction onCreated={(pda) => { registerAuction(pda); setAuctionPda(pda); }} />
             ) : activeView === "join" ? (
               <div className="bg-gray-900 rounded-xl border border-gray-700 p-5">
                 <h2 className="text-lg font-semibold text-white mb-4">
@@ -184,7 +214,7 @@ export default function Home() {
                   className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-teal-500 mb-3"
                 />
                 <button
-                  onClick={() => joinInput && setAuctionPda(joinInput)}
+                  onClick={() => { if (joinInput) { registerAuction(joinInput); setAuctionPda(joinInput); } }}
                   disabled={!joinInput}
                   className="w-full py-2.5 rounded-lg font-semibold text-sm bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-40 transition-all"
                 >
