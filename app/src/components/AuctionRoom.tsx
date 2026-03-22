@@ -204,7 +204,7 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
             <img
               src={nftImage}
               alt={auction.title}
-              className="w-full h-56 object-cover"
+              className="w-full aspect-square object-contain bg-gray-800"
             />
           </div>
         )}

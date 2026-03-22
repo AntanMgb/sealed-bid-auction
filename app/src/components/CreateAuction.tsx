@@ -150,7 +150,7 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
                 <img
                   src={imagePreview}
                   alt="NFT preview"
-                  className="w-full h-48 object-cover rounded-lg border border-gray-600"
+                  className="w-full aspect-square object-contain bg-gray-800 rounded-lg border border-gray-600"
                 />
                 <button
                   onClick={() => setImagePreview(null)}
