@@ -160,7 +160,11 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
         bidders
       );
       setCommitTxSig(sig);
+      // Wait for TEE commit to propagate to L1, then refresh
+      await new Promise((r) => setTimeout(r, 3000));
       await refresh();
+      // Retry refresh if state didn't update yet
+      setTimeout(() => refresh(), 5000);
     } catch (err) {
       console.error(err);
       setCloseError(err instanceof Error ? err.message : "Close failed");
@@ -181,7 +185,7 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
   }
 
   const isDelegated = "delegated" in auction.status || "created" in auction.status;
-  const isClosed = "closed" in auction.status || "settled" in auction.status;
+  const isClosed = "closed" in auction.status || "settled" in auction.status || "cancelled" in auction.status;
   const isExpired = Date.now() >= auction.endTime.toNumber() * 1000;
 
   return (
