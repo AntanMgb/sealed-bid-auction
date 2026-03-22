@@ -497,7 +497,7 @@ export default function Home() {
               <div className="text-lg font-bold text-white" style={{ fontFamily: "'Unbounded', sans-serif" }}>MagicBlock Solana Blitz Hackathon V2</div>
               <div className="text-sm" style={{ color: "var(--text-mid)" }}>March 2026 — Private Ephemeral Rollups Track</div>
               <div className="mt-2 text-xs mono" style={{ color: "var(--text-dim)" }}>
-                Program ID: 5bnJuoZoBWCURr3hh3qYsBiD9jiQiL5vbMXTJS5VFXVy
+                Program ID: FSo5XfH1WpttJYtGqLL2GFyBpbn54XDxvqFhYCFTLuwh
               </div>
             </div>
           </div>

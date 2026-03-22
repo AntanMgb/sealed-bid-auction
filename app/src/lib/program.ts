@@ -499,8 +499,12 @@ export interface AuctionState {
 export async function fetchAllAuctions(
   program: Program
 ): Promise<{ publicKey: PublicKey; account: AuctionState }[]> {
+  // Add timeout to prevent page hanging
+  const timeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
+    Promise.race([promise, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
+
   try {
-    const all = await (program.account as any).auction.all();
+    const all: any[] = await timeout((program.account as any).auction.all(), 10000);
     return all.map((a: any) => ({
       publicKey: a.publicKey,
       account: a.account as AuctionState,
@@ -509,9 +513,9 @@ export async function fetchAllAuctions(
     // Fallback: fetch raw program accounts and decode manually
     try {
       const conn = program.provider.connection;
-      const accounts = await conn.getProgramAccounts(PROGRAM_ID, {
-        filters: [{ dataSize: 3340 }], // approximate Auction account size
-      });
+      const accounts = await timeout(conn.getProgramAccounts(PROGRAM_ID, {
+        filters: [{ dataSize: 3431 }],
+      }), 10000);
       const results: { publicKey: PublicKey; account: AuctionState }[] = [];
       for (const { pubkey, account } of accounts) {
         try {
