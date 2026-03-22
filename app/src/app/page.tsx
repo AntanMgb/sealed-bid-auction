@@ -127,7 +127,10 @@ export default function Home() {
         } catch {}
       }
 
-      setAuctions([...registryResults, ...l1Auctions]);
+      // Newest first, limit to 5
+      const merged = [...registryResults, ...l1Auctions];
+      merged.sort((a, b) => b.account.startTime.toNumber() - a.account.startTime.toNumber());
+      setAuctions(merged.slice(0, 5));
     } catch (err) {
       console.error("Failed to fetch auctions:", err);
     } finally {
