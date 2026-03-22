@@ -6,6 +6,7 @@ import { AnchorProvider, BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { createAuction, delegateAuction, getAuctionPda, getProgram } from "@/lib/program";
 import { getDevnetConnection, getTeeValidatorIdentity } from "@/lib/magicblock";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
 
 interface Props {
   onCreated: (auctionPda: string, title: string) => void;
@@ -24,6 +25,8 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
   const [reserve, setReserve] = useState("0.1");
   const [duration, setDuration] = useState("300");
   const [auctionType, setAuctionType] = useState<string>("nft");
+  const [mintAddress, setMintAddress] = useState("");
+  const [escrowAmount, setEscrowAmount] = useState("1");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [step, setStep] = useState<"idle" | "creating" | "delegating" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +53,22 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
       setError("Enter a valid reserve price");
       return;
     }
+    if (!mintAddress) {
+      setError("Enter a token mint address");
+      return;
+    }
+    let nftMint: PublicKey;
+    try {
+      nftMint = new PublicKey(mintAddress);
+    } catch {
+      setError("Invalid mint address");
+      return;
+    }
+    const escrowAmt = parseInt(escrowAmount);
+    if (isNaN(escrowAmt) || escrowAmt <= 0) {
+      setError("Enter a valid escrow amount");
+      return;
+    }
 
     try {
       const devnetConnection = getDevnetConnection();
@@ -63,9 +82,14 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
       const reserveLamports = new BN(Math.floor(reserveNum * 1e9));
       const durationSec = new BN(parseInt(duration));
 
+      const sellerNftAccount = await getAssociatedTokenAddress(nftMint, publicKey);
+
       // Step 1: Create on L1
       setStep("creating");
-      await createAuction(program, publicKey, auctionId, reserveLamports, durationSec, title);
+      await createAuction(
+        program, publicKey, auctionId, reserveLamports, durationSec, title,
+        nftMint, sellerNftAccount, new BN(escrowAmt)
+      );
 
       const pda = getAuctionPda(publicKey, auctionId);
 
@@ -183,6 +207,32 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
             )}
           </div>
         )}
+
+        {/* Token Mint Address */}
+        <div>
+          <label className="text-xs block mb-1" style={{ color: "var(--text-dim)" }}>Token Mint Address</label>
+          <input
+            value={mintAddress}
+            onChange={(e) => setMintAddress(e.target.value.trim())}
+            placeholder="e.g. EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+            className="input mono text-xs"
+          />
+        </div>
+
+        {/* Escrow Amount */}
+        <div>
+          <label className="text-xs block mb-1" style={{ color: "var(--text-dim)" }}>
+            {auctionType === "nft" ? "Token Amount (1 for NFT)" : "Token Amount to Escrow"}
+          </label>
+          <input
+            type="number"
+            value={escrowAmount}
+            onChange={(e) => setEscrowAmount(e.target.value)}
+            placeholder="1"
+            className="input"
+            min="1"
+          />
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>

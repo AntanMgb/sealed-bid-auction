@@ -1,219 +1,209 @@
 {
-  "address": "5bnJuoZoBWCURr3hh3qYsBiD9jiQiL5vbMXTJS5VFXVy",
+  "address": "FSo5XfH1WpttJYtGqLL2GFyBpbn54XDxvqFhYCFTLuwh",
   "metadata": {
     "name": "sealed_bid_auction",
     "version": "0.1.0",
-    "spec": "0.1.0"
+    "spec": "0.1.0",
+    "description": "Private sealed-bid auction using MagicBlock Private Ephemeral Rollups (TEE)"
   },
+  "docs": [
+    "# Sealed-Bid Auction on MagicBlock Private Ephemeral Rollups",
+    "",
+    "Full flow:",
+    "",
+    "## L1 (Solana Devnet)",
+    "1. `create_auction`         — Seller initialises the auction",
+    "2. `create_bid_permission`  — Each bidder sets up a privacy group (pre-bid)",
+    "3. `delegate_auction`       — Seller moves the auction to the TEE (PER)",
+    "",
+    "## PER / TEE (https://tee.magicblock.app)",
+    "4. `place_bid`              — Bidder submits a sealed bid (amount hidden)",
+    "• bid_count visible in real-time via PER WebSocket",
+    "• bid amount stored in private Bid PDA, permission-gated",
+    "5. `close_auction`          — Anyone calls after expiry",
+    "• Runs entirely inside Intel TDX enclave",
+    "• Iterates ALL private Bid PDAs, finds highest ≥ reserve",
+    "• Writes winner to auction state",
+    "• `commit_and_undelegate` → signed by TEE validator → committed to L1",
+    "",
+    "## L1 (after TEE commit)",
+    "6. `settle_auction`         — Winner pays and auction is marked complete",
+    "",
+    "Verifiability:",
+    "The commit transaction from step 5 is signed by the TEE validator",
+    "(FnE6VJT5QNZdedZPnCoLsARgBwoE6DeJNjBs2H1gySXA on devnet), which is",
+    "publicly attested to run inside an Intel TDX Trust Domain.",
+    "Anyone can verify: winner was computed fairly, no floor manipulation,",
+    "no sniping, no insider info."
+  ],
   "instructions": [
     {
-      "name": "create_auction",
-      "discriminator": [234, 6, 201, 246, 47, 219, 176, 107],
-      "accounts": [
-        {
-          "name": "seller",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "auction",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              { "kind": "const", "value": [97, 117, 99, 116, 105, 111, 110] },
-              { "kind": "account", "path": "seller" },
-              { "kind": "arg", "path": "auction_id" }
-            ]
-          }
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
+      "name": "cancel_auction",
+      "docs": [
+        "Cancel auction — returns tokens/NFT to seller.",
+        "Permissionless: anyone can call when there's no winner or settle deadline expired."
       ],
-      "args": [
-        { "name": "auction_id", "type": "u64" },
-        { "name": "reserve_price", "type": "u64" },
-        { "name": "duration_seconds", "type": "i64" },
-        { "name": "title", "type": "string" }
-      ]
-    },
-    {
-      "name": "create_bid_permission",
-      "discriminator": [168, 176, 182, 33, 250, 139, 74, 43],
-      "accounts": [
-        {
-          "name": "bidder",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "auction"
-        },
-        {
-          "name": "permission_group",
-          "writable": true
-        },
-        {
-          "name": "permission_program",
-          "address": "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1"
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
+      "discriminator": [
+        156,
+        43,
+        197,
+        110,
+        218,
+        105,
+        143,
+        182
       ],
-      "args": []
-    },
-    {
-      "name": "delegate_auction",
-      "discriminator": [85, 114, 125, 69, 80, 147, 146, 83],
       "accounts": [
         {
           "name": "payer",
+          "docs": [
+            "Anyone can crank this — pays tx fee only"
+          ],
           "writable": true,
           "signer": true
         },
         {
-          "name": "buffer",
-          "writable": true
-        },
-        {
-          "name": "delegation_record",
-          "writable": true
-        },
-        {
-          "name": "delegation_metadata",
+          "name": "seller",
+          "docs": [
+            "Validated against auction.seller via constraint."
+          ],
           "writable": true
         },
         {
           "name": "auction",
-          "writable": true
-        },
-        {
-          "name": "owner_program",
-          "address": "5bnJuoZoBWCURr3hh3qYsBiD9jiQiL5vbMXTJS5VFXVy"
-        },
-        {
-          "name": "delegation_program",
-          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": [
-        { "name": "auction_id", "type": "u64" }
-      ]
-    },
-    {
-      "name": "init_bid",
-      "discriminator": [187, 128, 146, 228, 29, 136, 193, 168],
-      "accounts": [
-        {
-          "name": "bidder",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "auction"
-        },
-        {
-          "name": "bid",
           "writable": true,
           "pda": {
             "seeds": [
-              { "kind": "const", "value": [98, 105, 100] },
-              { "kind": "account", "path": "auction" },
-              { "kind": "account", "path": "bidder" }
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction.seller",
+                "account": "Auction"
+              },
+              {
+                "kind": "account",
+                "path": "auction.auction_id",
+                "account": "Auction"
+              }
             ]
           }
         },
         {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
+          "name": "escrow_token_account",
+          "docs": [
+            "Escrow token account holding the tokens/NFT"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  102,
+                  116,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction.seller",
+                "account": "Auction"
+              },
+              {
+                "kind": "account",
+                "path": "auction.auction_id",
+                "account": "Auction"
+              }
+            ]
+          }
+        },
+        {
+          "name": "seller_token_account",
+          "docs": [
+            "Seller's token account to receive tokens back"
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": []
-    },
-    {
-      "name": "delegate_bid",
-      "discriminator": [205, 246, 97, 168, 93, 183, 203, 117],
-      "accounts": [
-        {
-          "name": "bidder",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "auction"
-        },
-        {
-          "name": "buffer",
-          "writable": true
-        },
-        {
-          "name": "delegation_record",
-          "writable": true
-        },
-        {
-          "name": "delegation_metadata",
-          "writable": true
-        },
-        {
-          "name": "bid",
-          "writable": true
-        },
-        {
-          "name": "owner_program",
-          "address": "5bnJuoZoBWCURr3hh3qYsBiD9jiQiL5vbMXTJS5VFXVy"
-        },
-        {
-          "name": "delegation_program",
-          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "place_bid",
-      "discriminator": [238, 77, 148, 91, 200, 151, 92, 146],
-      "accounts": [
-        {
-          "name": "bidder",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "auction",
-          "writable": true
-        },
-        {
-          "name": "bid",
-          "writable": true
-        }
-      ],
-      "args": [
-        { "name": "amount", "type": "u64" }
-      ]
     },
     {
       "name": "close_auction",
-      "discriminator": [225, 129, 91, 48, 215, 73, 203, 172],
+      "docs": [
+        "Close the auction and compute the winner inside the TEE.",
+        "Pass all Bid PDAs as remaining_accounts.",
+        "Automatically commits result to L1 with TEE attestation."
+      ],
+      "discriminator": [
+        225,
+        129,
+        91,
+        48,
+        215,
+        73,
+        203,
+        172
+      ],
       "accounts": [
         {
           "name": "payer",
+          "docs": [
+            "Caller (seller or any crank — auction is expired and anyone can trigger)"
+          ],
           "writable": true,
           "signer": true
         },
         {
           "name": "auction",
-          "writable": true
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction.seller",
+                "account": "Auction"
+              },
+              {
+                "kind": "account",
+                "path": "auction.auction_id",
+                "account": "Auction"
+              }
+            ]
+          }
         },
         {
           "name": "magic_program",
@@ -228,21 +218,224 @@
       "args": []
     },
     {
-      "name": "settle_auction",
-      "discriminator": [246, 196, 183, 98, 222, 139, 46, 133],
+      "name": "create_auction",
+      "docs": [
+        "Create a new sealed-bid auction on L1."
+      ],
+      "discriminator": [
+        234,
+        6,
+        201,
+        246,
+        47,
+        219,
+        176,
+        107
+      ],
       "accounts": [
         {
-          "name": "winner",
+          "name": "seller",
           "writable": true,
           "signer": true
         },
         {
-          "name": "seller",
+          "name": "auction",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "seller"
+              },
+              {
+                "kind": "arg",
+                "path": "auction_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "nft_mint",
+          "docs": [
+            "The NFT mint being auctioned"
+          ]
+        },
+        {
+          "name": "seller_nft_account",
+          "docs": [
+            "Seller's token account holding the NFT"
+          ],
           "writable": true
         },
         {
+          "name": "escrow_nft_account",
+          "docs": [
+            "Escrow token account — PDA-owned, holds the NFT during the auction.",
+            "Authority is the Auction PDA so the program can transfer it out later."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  102,
+                  116,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "seller"
+              },
+              {
+                "kind": "arg",
+                "path": "auction_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "auction_id",
+          "type": "u64"
+        },
+        {
+          "name": "reserve_price",
+          "type": "u64"
+        },
+        {
+          "name": "duration_seconds",
+          "type": "i64"
+        },
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "escrow_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "create_bid_permission",
+      "docs": [
+        "Create a Permission Group for a bidder's future Bid PDA.",
+        "Called on L1 before the bidder places their bid on PER.",
+        "Restricts RPC read access so only the bidder can query their amount."
+      ],
+      "discriminator": [
+        168,
+        176,
+        182,
+        33,
+        250,
+        139,
+        74,
+        43
+      ],
+      "accounts": [
+        {
+          "name": "bidder",
+          "writable": true,
+          "signer": true
+        },
+        {
           "name": "auction",
-          "writable": true
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction.seller",
+                "account": "Auction"
+              },
+              {
+                "kind": "account",
+                "path": "auction.auction_id",
+                "account": "Auction"
+              }
+            ]
+          }
+        },
+        {
+          "name": "permission_group",
+          "docs": [
+            "PDA that the Permission Program will initialise as the access-control group.",
+            "Seeds are deterministic so the PER middleware can derive + verify on every RPC call."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  101,
+                  114,
+                  109,
+                  95,
+                  103,
+                  114,
+                  111,
+                  117,
+                  112
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction"
+              },
+              {
+                "kind": "account",
+                "path": "bidder"
+              }
+            ]
+          }
+        },
+        {
+          "name": "permission_program",
+          "address": "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1"
         },
         {
           "name": "system_program",
@@ -252,95 +445,1075 @@
       "args": []
     },
     {
+      "name": "delegate_auction",
+      "docs": [
+        "Delegate the auction account to the Private Ephemeral Rollup (TEE).",
+        "Pass the same auction_id used in create_auction.",
+        "After this, bids are accepted at the TEE endpoint, not on L1."
+      ],
+      "discriminator": [
+        85,
+        114,
+        125,
+        69,
+        80,
+        147,
+        146,
+        83
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "buffer_auction",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                214,
+                159,
+                60,
+                227,
+                131,
+                51,
+                147,
+                169,
+                46,
+                52,
+                184,
+                233,
+                138,
+                187,
+                235,
+                198,
+                181,
+                139,
+                19,
+                13,
+                89,
+                222,
+                208,
+                243,
+                153,
+                249,
+                173,
+                199,
+                82,
+                216,
+                225,
+                76
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_auction",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_auction",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "auction",
+          "docs": [
+            "the same derivation used in create_auction."
+          ],
+          "writable": true
+        },
+        {
+          "name": "owner_program",
+          "address": "FSo5XfH1WpttJYtGqLL2GFyBpbn54XDxvqFhYCFTLuwh"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "auction_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "delegate_bid",
+      "docs": [
+        "Delegate the Bid PDA to the PER/TEE.",
+        "Called on L1 after init_bid.",
+        "Pass the TEE validator as remaining_accounts[0]."
+      ],
+      "discriminator": [
+        205,
+        246,
+        97,
+        168,
+        93,
+        183,
+        203,
+        117
+      ],
+      "accounts": [
+        {
+          "name": "bidder",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "auction"
+        },
+        {
+          "name": "buffer_bid",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bid"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                214,
+                159,
+                60,
+                227,
+                131,
+                51,
+                147,
+                169,
+                46,
+                52,
+                184,
+                233,
+                138,
+                187,
+                235,
+                198,
+                181,
+                139,
+                19,
+                13,
+                89,
+                222,
+                208,
+                243,
+                153,
+                249,
+                173,
+                199,
+                82,
+                216,
+                225,
+                76
+              ]
+            }
+          }
+        },
+        {
+          "name": "delegation_record_bid",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bid"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "delegation_metadata_bid",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  101,
+                  108,
+                  101,
+                  103,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "bid"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "delegation_program"
+            }
+          }
+        },
+        {
+          "name": "bid",
+          "writable": true
+        },
+        {
+          "name": "owner_program",
+          "address": "FSo5XfH1WpttJYtGqLL2GFyBpbn54XDxvqFhYCFTLuwh"
+        },
+        {
+          "name": "delegation_program",
+          "address": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "init_bid",
+      "docs": [
+        "Create an empty Bid PDA on L1.",
+        "Must be called BEFORE delegate_bid and place_bid."
+      ],
+      "discriminator": [
+        187,
+        128,
+        146,
+        228,
+        29,
+        136,
+        193,
+        168
+      ],
+      "accounts": [
+        {
+          "name": "bidder",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "auction",
+          "docs": [
+            "Program on L1, so we cannot use Account<Auction>. We only need its",
+            "key for the bid PDA seed derivation."
+          ]
+        },
+        {
+          "name": "bid",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction"
+              },
+              {
+                "kind": "account",
+                "path": "bidder"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "place_bid",
+      "docs": [
+        "Place a sealed bid. MUST be sent to the TEE endpoint.",
+        "The bid amount is stored in a private Bid PDA on PER — never on L1.",
+        "Only the `bid_count` on the auction state updates (publicly visible)."
+      ],
+      "discriminator": [
+        238,
+        77,
+        148,
+        91,
+        200,
+        151,
+        92,
+        146
+      ],
+      "accounts": [
+        {
+          "name": "bidder",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "auction",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction.seller",
+                "account": "Auction"
+              },
+              {
+                "kind": "account",
+                "path": "auction.auction_id",
+                "account": "Auction"
+              }
+            ]
+          }
+        },
+        {
+          "name": "bid",
+          "docs": [
+            "Private Bid PDA — created + delegated on L1 by `init_bid`,",
+            "updated here on the TEE with the actual bid amount.",
+            "Only the bidder can read `amount` via TEE RPC; the TEE program can",
+            "read it during `close_auction` to compute the winner."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  105,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction"
+              },
+              {
+                "kind": "account",
+                "path": "bidder"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "process_undelegation",
-      "discriminator": [196, 28, 41, 206, 48, 37, 51, 167],
-      "accounts": [],
+      "discriminator": [
+        196,
+        28,
+        41,
+        206,
+        48,
+        37,
+        51,
+        167
+      ],
+      "accounts": [
+        {
+          "name": "base_account",
+          "writable": true
+        },
+        {
+          "name": "buffer"
+        },
+        {
+          "name": "payer",
+          "writable": true
+        },
+        {
+          "name": "system_program"
+        }
+      ],
+      "args": [
+        {
+          "name": "account_seeds",
+          "type": {
+            "vec": "bytes"
+          }
+        }
+      ]
+    },
+    {
+      "name": "settle_auction",
+      "docs": [
+        "Settle the auction — winner pays SOL, receives NFT from escrow.",
+        "By this point the winner and winning_bid are already on L1,",
+        "committed by the TEE with a verifiable attestation."
+      ],
+      "discriminator": [
+        246,
+        196,
+        183,
+        98,
+        222,
+        139,
+        46,
+        133
+      ],
+      "accounts": [
+        {
+          "name": "winner",
+          "docs": [
+            "The auction winner (must sign + pay)"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "seller",
+          "docs": [
+            "The seller receives SOL + escrow rent refund"
+          ],
+          "writable": true
+        },
+        {
+          "name": "auction",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction.seller",
+                "account": "Auction"
+              },
+              {
+                "kind": "account",
+                "path": "auction.auction_id",
+                "account": "Auction"
+              }
+            ]
+          }
+        },
+        {
+          "name": "escrow_nft_account",
+          "docs": [
+            "Escrow token account holding the NFT"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  102,
+                  116,
+                  95,
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "auction.seller",
+                "account": "Auction"
+              },
+              {
+                "kind": "account",
+                "path": "auction.auction_id",
+                "account": "Auction"
+              }
+            ]
+          }
+        },
+        {
+          "name": "winner_nft_account",
+          "docs": [
+            "Winner's token account for the NFT"
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
       "args": []
     }
   ],
   "accounts": [
     {
       "name": "Auction",
-      "discriminator": [218, 94, 247, 242, 126, 233, 131, 81]
+      "discriminator": [
+        218,
+        94,
+        247,
+        242,
+        126,
+        233,
+        131,
+        81
+      ]
     },
     {
       "name": "Bid",
-      "discriminator": [143, 246, 48, 245, 42, 145, 180, 88]
+      "discriminator": [
+        143,
+        246,
+        48,
+        245,
+        42,
+        145,
+        180,
+        88
+      ]
     }
   ],
   "events": [
     {
-      "name": "AuctionCreated",
-      "discriminator": [133, 190, 194, 65, 172, 0, 70, 178],
-      "fields": [
-        { "name": "auction", "type": "pubkey" },
-        { "name": "seller", "type": "pubkey" },
-        { "name": "auction_id", "type": "u64" },
-        { "name": "reserve_price", "type": "u64" },
-        { "name": "end_time", "type": "i64" },
-        { "name": "title", "type": "string" }
-      ]
-    },
-    {
-      "name": "BidPlaced",
-      "discriminator": [135, 53, 176, 83, 193, 69, 108, 61],
-      "fields": [
-        { "name": "auction", "type": "pubkey" },
-        { "name": "bidder", "type": "pubkey" },
-        { "name": "bid_count", "type": "u32" },
-        { "name": "timestamp", "type": "i64" }
-      ]
-    },
-    {
       "name": "AuctionClosed",
-      "discriminator": [104, 72, 168, 177, 241, 79, 231, 167],
-      "fields": [
-        { "name": "auction", "type": "pubkey" },
-        { "name": "winner", "type": { "option": "pubkey" } },
-        { "name": "winning_bid", "type": "u64" },
-        { "name": "bid_count", "type": "u32" },
-        { "name": "success", "type": "bool" }
+      "discriminator": [
+        104,
+        72,
+        168,
+        177,
+        241,
+        79,
+        231,
+        167
+      ]
+    },
+    {
+      "name": "AuctionCreated",
+      "discriminator": [
+        133,
+        190,
+        194,
+        65,
+        172,
+        0,
+        70,
+        178
       ]
     },
     {
       "name": "AuctionSettled",
-      "discriminator": [61, 151, 131, 170, 95, 203, 219, 147],
-      "fields": [
-        { "name": "auction", "type": "pubkey" },
-        { "name": "winner", "type": "pubkey" },
-        { "name": "seller", "type": "pubkey" },
-        { "name": "winning_bid", "type": "u64" }
+      "discriminator": [
+        61,
+        151,
+        131,
+        170,
+        95,
+        203,
+        219,
+        147
       ]
     },
     {
       "name": "BidPermissionCreated",
-      "discriminator": [155, 126, 111, 34, 40, 162, 121, 164],
-      "fields": [
-        { "name": "auction", "type": "pubkey" },
-        { "name": "bidder", "type": "pubkey" },
-        { "name": "bid_pda", "type": "pubkey" },
-        { "name": "permission_group", "type": "pubkey" }
+      "discriminator": [
+        155,
+        126,
+        111,
+        34,
+        40,
+        162,
+        121,
+        164
       ]
+    },
+    {
+      "name": "BidPlaced",
+      "discriminator": [
+        135,
+        53,
+        176,
+        83,
+        193,
+        69,
+        108,
+        61
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NotCreated",
+      "msg": "Auction is not in Created status"
+    },
+    {
+      "code": 6001,
+      "name": "NotDelegated",
+      "msg": "Auction is not delegated to PER"
+    },
+    {
+      "code": 6002,
+      "name": "BiddingClosed",
+      "msg": "Auction bidding is not open"
+    },
+    {
+      "code": 6003,
+      "name": "AuctionStillActive",
+      "msg": "Auction has not yet expired"
+    },
+    {
+      "code": 6004,
+      "name": "AuctionExpired",
+      "msg": "Auction has already expired"
+    },
+    {
+      "code": 6005,
+      "name": "BidBelowReserve",
+      "msg": "Bid amount is below the reserve price"
+    },
+    {
+      "code": 6006,
+      "name": "AlreadyBid",
+      "msg": "Bidder has already placed a bid"
+    },
+    {
+      "code": 6007,
+      "name": "NotClosed",
+      "msg": "Auction is not closed (winner not yet computed)"
+    },
+    {
+      "code": 6008,
+      "name": "NoWinner",
+      "msg": "No valid winner: all bids were below reserve price"
+    },
+    {
+      "code": 6009,
+      "name": "AlreadySettled",
+      "msg": "Auction is already settled"
+    },
+    {
+      "code": 6010,
+      "name": "TitleTooLong",
+      "msg": "Title exceeds maximum length of 64 characters"
+    },
+    {
+      "code": 6011,
+      "name": "MaxBiddersReached",
+      "msg": "Maximum number of bidders reached"
+    },
+    {
+      "code": 6012,
+      "name": "NotSeller",
+      "msg": "Caller is not the auction seller"
+    },
+    {
+      "code": 6013,
+      "name": "NotWinner",
+      "msg": "Caller is not the auction winner"
+    },
+    {
+      "code": 6014,
+      "name": "AuctionHasWinner",
+      "msg": "Auction has a winner — cannot cancel"
+    },
+    {
+      "code": 6015,
+      "name": "TokenNotOwned",
+      "msg": "Seller does not own the token"
+    },
+    {
+      "code": 6016,
+      "name": "InvalidEscrowAmount",
+      "msg": "Escrow amount must be greater than zero"
+    },
+    {
+      "code": 6017,
+      "name": "SettleDeadlineNotReached",
+      "msg": "Winner still has time to settle — wait for the 15-minute deadline"
     }
   ],
   "types": [
     {
       "name": "Auction",
+      "docs": [
+        "State stored on-chain (L1 before/after delegation, PER during active bidding).",
+        "While delegated to the Private Ephemeral Rollup (TEE), only `bid_count` and",
+        "`status` are visible in real-time via the ER connection. Bid amounts live",
+        "in private `Bid` PDAs, accessible only to each bidder via the Permission",
+        "Program's access-control groups."
+      ],
       "type": {
         "kind": "struct",
         "fields": [
-          { "name": "seller", "type": "pubkey" },
-          { "name": "title", "type": "string" },
-          { "name": "reserve_price", "type": "u64" },
-          { "name": "start_time", "type": "i64" },
-          { "name": "end_time", "type": "i64" },
-          { "name": "bid_count", "type": "u32" },
-          { "name": "status", "type": { "defined": { "name": "AuctionStatus" } } },
-          { "name": "winner", "type": "pubkey" },
-          { "name": "winning_bid", "type": "u64" },
-          { "name": "auction_id", "type": "u64" },
-          { "name": "bump", "type": "u8" },
-          { "name": "bidders", "type": { "vec": "pubkey" } }
+          {
+            "name": "seller",
+            "docs": [
+              "Seller's wallet — only they can close + settle"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "title",
+            "docs": [
+              "Human-readable title shown in the UI"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "reserve_price",
+            "docs": [
+              "Minimum winning bid (in lamports)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "start_time",
+            "docs": [
+              "Unix timestamp: auction start"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "end_time",
+            "docs": [
+              "Unix timestamp: bidding deadline"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bid_count",
+            "docs": [
+              "Number of bids placed so far (public, real-time visible on PER)"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "State machine: Created → Delegated → Closed → Settled"
+            ],
+            "type": {
+              "defined": {
+                "name": "AuctionStatus"
+              }
+            }
+          },
+          {
+            "name": "winner",
+            "docs": [
+              "Populated by close_auction running inside TEE"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "winning_bid",
+            "docs": [
+              "Winning amount in lamports (revealed after TEE computation)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "auction_id",
+            "docs": [
+              "Unique auction ID used in PDA derivation"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "nft_mint",
+            "docs": [
+              "Mint of the escrowed token/NFT"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "escrow_amount",
+            "docs": [
+              "Amount of tokens escrowed (1 for NFT, any for fungible tokens)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "settle_deadline",
+            "docs": [
+              "Unix timestamp deadline for winner to settle (set by close_auction)",
+              "If winner doesn't pay by this time, seller can cancel and reclaim tokens."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bidders",
+            "docs": [
+              "Public list of *who* bid (not amounts). Allows close_auction to derive",
+              "each Bid PDA without storing amounts in the auction state."
+            ],
+            "type": {
+              "vec": "pubkey"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionClosed",
+      "docs": [
+        "Emitted on L1 as part of the TEE commit transaction.",
+        "This event is the public, verifiable proof of the TEE computation result."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction",
+            "type": "pubkey"
+          },
+          {
+            "name": "winner",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "winning_bid",
+            "type": "u64"
+          },
+          {
+            "name": "bid_count",
+            "type": "u32"
+          },
+          {
+            "name": "success",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "auction_id",
+            "type": "u64"
+          },
+          {
+            "name": "reserve_price",
+            "type": "u64"
+          },
+          {
+            "name": "end_time",
+            "type": "i64"
+          },
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "nft_mint",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionSettled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction",
+            "type": "pubkey"
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "seller",
+            "type": "pubkey"
+          },
+          {
+            "name": "winning_bid",
+            "type": "u64"
+          }
         ]
       }
     },
@@ -349,74 +1522,70 @@
       "type": {
         "kind": "enum",
         "variants": [
-          { "name": "Created" },
-          { "name": "Delegated" },
-          { "name": "Closed" },
-          { "name": "Settled" }
+          {
+            "name": "Created"
+          },
+          {
+            "name": "Delegated"
+          },
+          {
+            "name": "Closed"
+          },
+          {
+            "name": "Settled"
+          },
+          {
+            "name": "Cancelled"
+          }
         ]
       }
     },
     {
       "name": "Bid",
+      "docs": [
+        "Private bid account. Lives on the Private Ephemeral Rollup (TEE).",
+        "The Permission Program restricts RPC read access to this PDA so that only",
+        "the bidder can query their own amount. The TEE can read all bids during",
+        "winner computation (close_auction instruction)."
+      ],
       "type": {
         "kind": "struct",
         "fields": [
-          { "name": "auction", "type": "pubkey" },
-          { "name": "bidder", "type": "pubkey" },
-          { "name": "amount", "type": "u64" },
-          { "name": "timestamp", "type": "i64" },
-          { "name": "bump", "type": "u8" }
-        ]
-      }
-    },
-    {
-      "name": "AuctionCreated",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          { "name": "auction", "type": "pubkey" },
-          { "name": "seller", "type": "pubkey" },
-          { "name": "auction_id", "type": "u64" },
-          { "name": "reserve_price", "type": "u64" },
-          { "name": "end_time", "type": "i64" },
-          { "name": "title", "type": "string" }
-        ]
-      }
-    },
-    {
-      "name": "BidPlaced",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          { "name": "auction", "type": "pubkey" },
-          { "name": "bidder", "type": "pubkey" },
-          { "name": "bid_count", "type": "u32" },
-          { "name": "timestamp", "type": "i64" }
-        ]
-      }
-    },
-    {
-      "name": "AuctionClosed",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          { "name": "auction", "type": "pubkey" },
-          { "name": "winner", "type": { "option": "pubkey" } },
-          { "name": "winning_bid", "type": "u64" },
-          { "name": "bid_count", "type": "u32" },
-          { "name": "success", "type": "bool" }
-        ]
-      }
-    },
-    {
-      "name": "AuctionSettled",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          { "name": "auction", "type": "pubkey" },
-          { "name": "winner", "type": "pubkey" },
-          { "name": "seller", "type": "pubkey" },
-          { "name": "winning_bid", "type": "u64" }
+          {
+            "name": "auction",
+            "docs": [
+              "Parent auction"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "bidder",
+            "docs": [
+              "The bidder's wallet"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "Bid amount in lamports — PRIVATE (permission-gated via PER middleware)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "docs": [
+              "When the bid was placed"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed"
+            ],
+            "type": "u8"
+          }
         ]
       }
     },
@@ -425,10 +1594,51 @@
       "type": {
         "kind": "struct",
         "fields": [
-          { "name": "auction", "type": "pubkey" },
-          { "name": "bidder", "type": "pubkey" },
-          { "name": "bid_pda", "type": "pubkey" },
-          { "name": "permission_group", "type": "pubkey" }
+          {
+            "name": "auction",
+            "type": "pubkey"
+          },
+          {
+            "name": "bidder",
+            "type": "pubkey"
+          },
+          {
+            "name": "bid_pda",
+            "type": "pubkey"
+          },
+          {
+            "name": "permission_group",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BidPlaced",
+      "docs": [
+        "Public event emitted per bid — NO amount included.",
+        "Subscribers to the PER WebSocket see this in real-time, confirming",
+        "\"a sealed bid was received\" without revealing anything about the amount."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction",
+            "type": "pubkey"
+          },
+          {
+            "name": "bidder",
+            "type": "pubkey"
+          },
+          {
+            "name": "bid_count",
+            "type": "u32"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
         ]
       }
     }

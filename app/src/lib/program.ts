@@ -6,6 +6,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program, BN, AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { ConnectionMagicRouter } from "@magicblock-labs/ephemeral-rollups-sdk";
 import {
   PROGRAM_ID,
@@ -18,6 +19,8 @@ import {
   MAGIC_PROGRAM,
   MAGIC_CONTEXT,
 } from "./constants";
+
+const NFT_ESCROW_SEED = Buffer.from("nft_escrow");
 import IDL from "../idl/sealed_bid_auction.json";
 
 // ─── PDA Helpers ─────────────────────────────────────────────────────────────
@@ -53,6 +56,18 @@ export function getPermGroupPda(
   return pda;
 }
 
+export function getEscrowPda(seller: PublicKey, auctionId: BN): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [
+      NFT_ESCROW_SEED,
+      seller.toBytes(),
+      auctionId.toArrayLike(Uint8Array, "le", 8),
+    ],
+    PROGRAM_ID
+  );
+  return pda;
+}
+
 // ─── Delegation PDA Helpers ───────────────────────────────────────────────────
 
 function getDelegationPdas(accountToDelegate: PublicKey) {
@@ -81,22 +96,31 @@ export function getProgram(provider: AnchorProvider): Program {
 
 // ─── Instructions ─────────────────────────────────────────────────────────────
 
-/** Step 1 (L1): Create the auction */
+/** Step 1 (L1): Create the auction with token escrow */
 export async function createAuction(
   program: Program,
   seller: PublicKey,
   auctionId: BN,
   reservePrice: BN,
   durationSeconds: BN,
-  title: string
+  title: string,
+  nftMint: PublicKey,
+  sellerNftAccount: PublicKey,
+  escrowAmount: BN
 ): Promise<string> {
   const auctionPda = getAuctionPda(seller, auctionId);
+  const escrowNftAccount = getEscrowPda(seller, auctionId);
 
   const tx = await program.methods
-    .createAuction(auctionId, reservePrice, durationSeconds, title)
+    .createAuction(auctionId, reservePrice, durationSeconds, title, escrowAmount)
     .accounts({
       seller,
       auction: auctionPda,
+      nftMint,
+      sellerNftAccount,
+      escrowNftAccount,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
     })
     .rpc({ commitment: "confirmed" });
 
@@ -377,12 +401,14 @@ export async function closeAuction(
   return sig;
 }
 
-/** Step 6 (L1): Settle auction — winner pays */
+/** Step 6 (L1): Settle auction — winner pays SOL, receives tokens */
 export async function settleAuction(
   program: Program,
   winner: PublicKey,
   seller: PublicKey,
-  auctionPda: PublicKey
+  auctionPda: PublicKey,
+  escrowNftAccount: PublicKey,
+  winnerNftAccount: PublicKey
 ): Promise<string> {
   const tx = await program.methods
     .settleAuction()
@@ -390,10 +416,39 @@ export async function settleAuction(
       winner,
       seller,
       auction: auctionPda,
+      escrowNftAccount,
+      winnerNftAccount,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      systemProgram: SystemProgram.programId,
     })
     .rpc({ commitment: "confirmed" });
 
   console.log("[L1] settle_auction tx:", tx);
+  return tx;
+}
+
+/** Cancel auction — permissionless crank, returns tokens to seller */
+export async function cancelAuction(
+  program: Program,
+  payer: PublicKey,
+  seller: PublicKey,
+  auctionPda: PublicKey,
+  escrowTokenAccount: PublicKey,
+  sellerTokenAccount: PublicKey
+): Promise<string> {
+  const tx = await program.methods
+    .cancelAuction()
+    .accounts({
+      payer,
+      seller,
+      auction: auctionPda,
+      escrowTokenAccount,
+      sellerTokenAccount,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .rpc({ commitment: "confirmed" });
+
+  console.log("[L1] cancel_auction tx:", tx);
   return tx;
 }
 
@@ -429,10 +484,13 @@ export interface AuctionState {
   startTime: BN;
   endTime: BN;
   bidCount: number;
-  status: { created?: {}; delegated?: {}; closed?: {}; settled?: {} };
+  status: { created?: {}; delegated?: {}; closed?: {}; settled?: {}; cancelled?: {} };
   winner: PublicKey;
   winningBid: BN;
   auctionId: BN;
+  nftMint: PublicKey;
+  escrowAmount: BN;
+  settleDeadline: BN;
   bump: number;
   bidders: PublicKey[];
 }

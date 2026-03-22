@@ -7,7 +7,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("5bnJuoZoBWCURr3hh3qYsBiD9jiQiL5vbMXTJS5VFXVy");
+declare_id!("FSo5XfH1WpttJYtGqLL2GFyBpbn54XDxvqFhYCFTLuwh");
 
 /// # Sealed-Bid Auction on MagicBlock Private Ephemeral Rollups
 ///
@@ -51,8 +51,9 @@ pub mod sealed_bid_auction {
         reserve_price: u64,
         duration_seconds: i64,
         title: String,
+        escrow_amount: u64,
     ) -> Result<()> {
-        create_auction::handler(ctx, auction_id, reserve_price, duration_seconds, title)
+        create_auction::handler(ctx, auction_id, reserve_price, duration_seconds, title, escrow_amount)
     }
 
     /// Create a Permission Group for a bidder's future Bid PDA.
@@ -100,10 +101,16 @@ pub mod sealed_bid_auction {
 
     // ── L1 (post-TEE) ────────────────────────────────────────────────────────
 
-    /// Settle the auction — winner pays, auction marked complete.
+    /// Settle the auction — winner pays SOL, receives NFT from escrow.
     /// By this point the winner and winning_bid are already on L1,
     /// committed by the TEE with a verifiable attestation.
     pub fn settle_auction(ctx: Context<SettleAuction>) -> Result<()> {
         settle::handler(ctx)
+    }
+
+    /// Cancel auction — returns tokens/NFT to seller.
+    /// Permissionless: anyone can call when there's no winner or settle deadline expired.
+    pub fn cancel_auction(ctx: Context<CancelAuction>) -> Result<()> {
+        cancel_auction::handler(ctx)
     }
 }

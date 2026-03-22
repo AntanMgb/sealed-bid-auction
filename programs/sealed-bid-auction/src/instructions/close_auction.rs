@@ -70,11 +70,16 @@ pub fn handler<'a>(ctx: Context<'_, '_, 'a, 'a, CloseAuction<'a>>) -> Result<()>
         }
     }
 
+    // 15 minutes for the winner to settle, otherwise seller can cancel
+    const SETTLE_TIMEOUT: i64 = 15 * 60;
+    let clock = Clock::get()?;
+
     // Update auction state (mutable borrow after loop)
     if winner == Pubkey::default() {
         ctx.accounts.auction.status = AuctionStatus::Closed;
         ctx.accounts.auction.winner = Pubkey::default();
         ctx.accounts.auction.winning_bid = 0;
+        ctx.accounts.auction.settle_deadline = 0;
 
         emit!(AuctionClosed {
             auction: auction_key,
@@ -89,6 +94,7 @@ pub fn handler<'a>(ctx: Context<'_, '_, 'a, 'a, CloseAuction<'a>>) -> Result<()>
         ctx.accounts.auction.status = AuctionStatus::Closed;
         ctx.accounts.auction.winner = winner;
         ctx.accounts.auction.winning_bid = highest_bid;
+        ctx.accounts.auction.settle_deadline = clock.unix_timestamp + SETTLE_TIMEOUT;
 
         emit!(AuctionClosed {
             auction: auction_key,
@@ -99,8 +105,8 @@ pub fn handler<'a>(ctx: Context<'_, '_, 'a, 'a, CloseAuction<'a>>) -> Result<()>
         });
 
         msg!(
-            "Auction {} closed. Winner: {}. Winning bid: {} lamports.",
-            auction_key, winner, highest_bid
+            "Auction {} closed. Winner: {}. Winning bid: {} lamports. Settle by: {}",
+            auction_key, winner, highest_bid, ctx.accounts.auction.settle_deadline
         );
     }
 

@@ -30,4 +30,12 @@ pub enum AuctionError {
     NotSeller,
     #[msg("Caller is not the auction winner")]
     NotWinner,
+    #[msg("Auction has a winner — cannot cancel")]
+    AuctionHasWinner,
+    #[msg("Seller does not own the token")]
+    TokenNotOwned,
+    #[msg("Escrow amount must be greater than zero")]
+    InvalidEscrowAmount,
+    #[msg("Winner still has time to settle — wait for the 15-minute deadline")]
+    SettleDeadlineNotReached,
 }

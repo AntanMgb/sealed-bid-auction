@@ -4,9 +4,11 @@ import { FC } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { AnchorProvider } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { getProgram, settleAuction, AuctionState } from "@/lib/program";
+import { getProgram, settleAuction, cancelAuction, getEscrowPda, AuctionState } from "@/lib/program";
 import { TeeAttestation, getDevnetConnection } from "@/lib/magicblock";
 import { TEE_VALIDATOR_DEVNET } from "@/lib/constants";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
+import { BN } from "@coral-xyz/anchor";
 
 interface Props {
   auctionPda: PublicKey;
@@ -26,8 +28,9 @@ export const ResultPanel: FC<Props> = ({
   const isWinner =
     publicKey && auction.winner.toBase58() === publicKey.toBase58();
   const hasWinner = auction.winner.toBase58() !== PublicKey.default.toBase58();
-  const isClosed = "closed" in auction.status || "settled" in auction.status;
+  const isClosed = "closed" in auction.status || "settled" in auction.status || "cancelled" in auction.status;
   const isSettled = "settled" in auction.status;
+  const isCancelled = "cancelled" in auction.status;
 
   async function handleSettle() {
     if (!publicKey || !signTransaction || !isWinner) return;
@@ -44,7 +47,51 @@ export const ResultPanel: FC<Props> = ({
     );
     const program = getProgram(provider);
 
-    await settleAuction(program, publicKey, auction.seller, auctionPda);
+    const escrowNftAccount = getEscrowPda(auction.seller, new BN(auction.auctionId));
+    const winnerNftAccount = await getAssociatedTokenAddress(
+      auction.nftMint,
+      publicKey
+    );
+
+    await settleAuction(
+      program,
+      publicKey,
+      auction.seller,
+      auctionPda,
+      escrowNftAccount,
+      winnerNftAccount
+    );
+  }
+
+  async function handleCancel() {
+    if (!publicKey || !signTransaction) return;
+
+    const devnetConnection = getDevnetConnection();
+    const provider = new AnchorProvider(
+      devnetConnection,
+      {
+        publicKey,
+        signTransaction,
+        signAllTransactions: async (txs) => txs,
+      },
+      { commitment: "confirmed" }
+    );
+    const program = getProgram(provider);
+
+    const escrowTokenAccount = getEscrowPda(auction.seller, new BN(auction.auctionId));
+    const sellerTokenAccount = await getAssociatedTokenAddress(
+      auction.nftMint,
+      auction.seller
+    );
+
+    await cancelAuction(
+      program,
+      publicKey,
+      auction.seller,
+      auctionPda,
+      escrowTokenAccount,
+      sellerTokenAccount
+    );
   }
 
   if (!isClosed) return null;
@@ -143,8 +190,18 @@ export const ResultPanel: FC<Props> = ({
           </p>
         </div>
 
+        {/* Settle deadline */}
+        {hasWinner && !isSettled && !isCancelled && auction.settleDeadline.toNumber() > 0 && (
+          <div className="flex justify-between text-xs" style={{ color: "var(--text-dim)" }}>
+            <span>Settle deadline</span>
+            <span className="mono">
+              {new Date(auction.settleDeadline.toNumber() * 1000).toLocaleTimeString()}
+            </span>
+          </div>
+        )}
+
         {/* Settle button for winner */}
-        {hasWinner && !isSettled && isWinner && (
+        {hasWinner && !isSettled && !isCancelled && isWinner && (
           <button
             onClick={handleSettle}
             className="btn-primary w-full"
@@ -153,9 +210,28 @@ export const ResultPanel: FC<Props> = ({
           </button>
         )}
 
+        {/* Cancel button — visible when no winner or settle deadline expired */}
+        {!isSettled && !isCancelled && (
+          (!hasWinner || (auction.settleDeadline.toNumber() > 0 && Date.now() / 1000 >= auction.settleDeadline.toNumber())) && (
+            <button
+              onClick={handleCancel}
+              className="w-full py-2 px-4 rounded-xl text-sm font-semibold transition-all"
+              style={{ background: "rgba(248,113,113,0.1)", color: "#f87171", border: "1px solid rgba(248,113,113,0.3)" }}
+            >
+              {hasWinner ? "Winner didn't pay — Cancel & Return Tokens" : "No winner — Return Tokens to Seller"}
+            </button>
+          )
+        )}
+
         {isSettled && (
           <div className="text-center text-sm font-bold" style={{ color: "#4ade80" }}>
-            🏆 Auction fully settled
+            Auction fully settled
+          </div>
+        )}
+
+        {isCancelled && (
+          <div className="text-center text-sm font-bold" style={{ color: "var(--text-dim)" }}>
+            Auction cancelled — tokens returned to seller
           </div>
         )}
       </div>

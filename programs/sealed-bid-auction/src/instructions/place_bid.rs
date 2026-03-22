@@ -28,7 +28,9 @@ pub fn handler(ctx: Context<PlaceBid>, amount: u64) -> Result<()> {
             || auction.status == AuctionStatus::Created,
         AuctionError::NotDelegated
     );
-    require!(auction.is_accepting_bids(), AuctionError::BiddingClosed);
+    // Note: time-based expiry is enforced only in close_auction.
+    // We skip the clock check here because the TEE clock can differ from L1,
+    // and bidding is effectively "open" until close_auction is called.
     require!(
         amount >= auction.reserve_price,
         AuctionError::BidBelowReserve

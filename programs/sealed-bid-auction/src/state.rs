@@ -4,6 +4,7 @@ use anchor_lang::prelude::*;
 pub const AUCTION_SEED: &[u8] = b"auction";
 pub const BID_SEED: &[u8] = b"bid";
 pub const PERM_GROUP_SEED: &[u8] = b"perm_group";
+pub const NFT_ESCROW_SEED: &[u8] = b"nft_escrow";
 
 // ─── Limits ──────────────────────────────────────────────────────────────────
 pub const MAX_TITLE_LEN: usize = 64;
@@ -39,6 +40,13 @@ pub struct Auction {
     pub winning_bid: u64,
     /// Unique auction ID used in PDA derivation
     pub auction_id: u64,
+    /// Mint of the escrowed token/NFT
+    pub nft_mint: Pubkey,
+    /// Amount of tokens escrowed (1 for NFT, any for fungible tokens)
+    pub escrow_amount: u64,
+    /// Unix timestamp deadline for winner to settle (set by close_auction)
+    /// If winner doesn't pay by this time, seller can cancel and reclaim tokens.
+    pub settle_deadline: i64,
     /// PDA bump seed
     pub bump: u8,
     /// Public list of *who* bid (not amounts). Allows close_auction to derive
@@ -58,6 +66,9 @@ impl Auction {
         + 32                                       // winner
         + 8                                        // winning_bid
         + 8                                        // auction_id
+        + 32                                       // nft_mint
+        + 8                                        // escrow_amount
+        + 8                                        // settle_deadline
         + 1                                        // bump
         + (4 + 32 * MAX_BIDDERS);                  // bidders vec
 
@@ -75,7 +86,7 @@ impl Auction {
     }
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, Debug)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AuctionStatus {
     /// Auction created on L1, not yet in PER
     Created,
@@ -85,6 +96,8 @@ pub enum AuctionStatus {
     Closed,
     /// Fully settled — item/funds transferred
     Settled,
+    /// Cancelled — no winner, NFT returned to seller
+    Cancelled,
 }
 
 // ─── Bid ─────────────────────────────────────────────────────────────────────
