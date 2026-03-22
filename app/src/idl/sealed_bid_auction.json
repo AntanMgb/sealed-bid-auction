@@ -313,7 +313,7 @@
   "events": [
     {
       "name": "AuctionCreated",
-      "discriminator": [],
+      "discriminator": [133, 190, 194, 65, 172, 0, 70, 178],
       "fields": [
         { "name": "auction", "type": "pubkey" },
         { "name": "seller", "type": "pubkey" },
@@ -325,7 +325,7 @@
     },
     {
       "name": "BidPlaced",
-      "discriminator": [],
+      "discriminator": [135, 53, 176, 83, 193, 69, 108, 61],
       "fields": [
         { "name": "auction", "type": "pubkey" },
         { "name": "bidder", "type": "pubkey" },
@@ -335,7 +335,7 @@
     },
     {
       "name": "AuctionClosed",
-      "discriminator": [],
+      "discriminator": [104, 72, 168, 177, 241, 79, 231, 167],
       "fields": [
         { "name": "auction", "type": "pubkey" },
         { "name": "winner", "type": { "option": "pubkey" } },
@@ -346,7 +346,7 @@
     },
     {
       "name": "AuctionSettled",
-      "discriminator": [],
+      "discriminator": [61, 151, 131, 170, 95, 203, 219, 147],
       "fields": [
         { "name": "auction", "type": "pubkey" },
         { "name": "winner", "type": "pubkey" },
@@ -356,7 +356,7 @@
     },
     {
       "name": "BidPermissionCreated",
-      "discriminator": [],
+      "discriminator": [155, 126, 111, 34, 40, 162, 121, 164],
       "fields": [
         { "name": "auction", "type": "pubkey" },
         { "name": "bidder", "type": "pubkey" },
