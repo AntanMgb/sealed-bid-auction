@@ -82,13 +82,23 @@ export const CreateAuction: FC<Props> = ({ onCreated }) => {
       const reserveLamports = new BN(Math.floor(reserveNum * 1e9));
       const durationSec = new BN(parseInt(duration));
 
-      const sellerNftAccount = await getAssociatedTokenAddr(nftMint, publicKey);
+      const sellerNftAccount = getAssociatedTokenAddr(nftMint, publicKey);
+
+      // Fetch mint decimals to convert user input to raw amount
+      const mintInfo = await devnetConnection.getAccountInfo(nftMint);
+      let decimals = 0;
+      if (mintInfo?.data) {
+        // SPL Token mint layout: decimals is at byte offset 44 (1 byte)
+        decimals = mintInfo.data[44];
+      }
+      const rawAmount = new BN(Math.floor(escrowAmt * Math.pow(10, decimals)));
+      console.log(`[L1] Escrow: ${escrowAmt} tokens × 10^${decimals} = ${rawAmount.toString()} raw`);
 
       // Step 1: Create on L1
       setStep("creating");
       await createAuction(
         program, publicKey, auctionId, reserveLamports, durationSec, title,
-        nftMint, sellerNftAccount, new BN(escrowAmt)
+        nftMint, sellerNftAccount, rawAmount
       );
 
       const pda = getAuctionPda(publicKey, auctionId);
