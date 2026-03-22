@@ -32,6 +32,7 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
   const [attestation, setAttestation] = useState<TeeAttestation | null>(null);
   const [commitTxSig, setCommitTxSig] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [knownBidders, setKnownBidders] = useState<string[]>([]);
@@ -211,9 +212,17 @@ export const AuctionRoom: FC<Props> = ({ auctionPdaStr }) => {
             <h1 className="text-2xl font-bold text-white truncate mt-2" style={{ fontFamily: "'Unbounded', sans-serif" }}>
               {auction.title}
             </h1>
-            <div className="text-xs mt-1 mono break-all" style={{ color: "var(--text-dim)" }}>
-              {auctionPdaStr}
-            </div>
+            <button
+              onClick={() => { navigator.clipboard.writeText(auctionPdaStr); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              className="flex items-center gap-2 text-xs mt-1 mono break-all transition-colors hover:text-white group"
+              style={{ color: "var(--text-dim)" }}
+              title="Click to copy"
+            >
+              <span>{auctionPdaStr}</span>
+              <span className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                {copied ? "Copied!" : "Copy"}
+              </span>
+            </button>
           </div>
           <div className="shrink-0">
             {isDelegated && !isExpired && (
